@@ -1,0 +1,245 @@
+---
+title: Viewing Reports
+description: Explore infrastructure reports on an interactive map with filtering and detailed case information
+---
+
+The reports viewing system provides an interactive map interface where you can explore all infrastructure cases in your region, filter by various criteria, and view detailed information about each case.
+
+## Accessing the Reports View
+
+From the main dashboard, the reports view displays:
+- An interactive map with color-coded case markers
+- Filter controls for narrowing down results
+- A sortable data table of all cases
+- Detailed case information panels
+
+## Understanding the Map Interface
+
+The map uses color-coded markers to show case status at a glance:
+
+<CardGroup cols={3}>
+  <Card title="Pendiente" icon="clock">
+    **Blue markers** - Cases awaiting agent review and response
+  </Card>
+  <Card title="En Proceso" icon="spinner">
+    **Yellow markers** - Cases currently being addressed by agents
+  </Card>
+  <Card title="Finalizado" icon="check-circle">
+    **Red markers** - Completed cases with final resolution
+  </Card>
+</CardGroup>
+
+### Map Features
+
+- **Zoom Controls** - Use +/- buttons or mouse wheel to zoom in/out
+- **Pan** - Click and drag to move around the map
+- **Markers** - Each marker shows the number of reports in that case
+- **Tooltips** - Hover over markers to see case titles
+- **Click to View** - Click any marker to see full case details
+
+<Note>
+  The number inside each marker indicates how many individual reports have been submitted about that same issue.
+</Note>
+
+## Filtering Cases
+
+Use the filter controls at the top of the page to narrow down visible cases:
+
+<Steps>
+  <Step title="Select problem category">
+    Choose from the **Problemática** dropdown to filter by main problem type (infrastructure, services, etc.)
+  </Step>
+  
+  <Step title="Narrow by class and type">
+    After selecting a category:
+    - **Clase de problemática** dropdown becomes active
+    - Then **Tipo de problema** dropdown becomes available
+    
+    Each level provides more specific filtering.
+  </Step>
+  
+  <Step title="Filter by location">
+    Geographic filters help you focus on specific areas:
+    - Select a **Departamento** (Department)
+    - Then choose a **Ciudad** (City) from the filtered list
+  </Step>
+  
+  <Step title="Filter by status">
+    Use the **Estado** dropdown to show only:
+    - Pendiente (Pending)
+    - En proceso (In Progress)
+    - Finalizado (Completed)
+  </Step>
+  
+  <Step title="Apply filters">
+    Click the 🔍 search button to apply all selected filters.
+    
+    The map and table will update to show only matching cases.
+  </Step>
+</Steps>
+
+<Tip>
+  You can leave some filter fields empty to cast a wider search. Only the filters you select will be applied.
+</Tip>
+
+## Working with the Case Table
+
+Below the map, a data table displays all visible cases with detailed information:
+
+### Table Columns
+
+| Column | Description |
+|--------|-------------|
+| **Problema** | Main problem category |
+| **Clase** | Problem class |
+| **Tipo** | Specific problem type |
+| **Departamento** | Geographic department |
+| **Ciudad** | City name |
+| **Fecha** | Date case was created |
+| **Estado** | Current case status |
+| **Cantidad** | Number of reports in this case |
+
+### Table Features
+
+- **Sorting** - Click any column header to sort by that field
+- **Pagination** - Use page numbers at the bottom to navigate through results
+- **Location** - Click the 📍 button to center the map on that case
+- **Details** - Click the ▶️ button to view full case details
+
+<Tip>
+  Click a column header multiple times to toggle between ascending and descending sort order.
+</Tip>
+
+## Viewing Detailed Case Information
+
+When you click a marker on the map or the ▶️ button in the table, detailed case information appears:
+
+### Case Overview Panel
+
+The top panel shows:
+- **Case ID** and title
+- **Registration date**
+- **Problem classification** (Category, Class, Type)
+- **Status badge** with color coding
+- **Number of associated reports**
+- **Location details** (Department, City, Address)
+- **Reporter information** (ID type, number, name)
+- **Problem description**
+
+### Photo Gallery
+
+Below the overview, a carousel displays photos from the selected report:
+- Use **arrow buttons** to navigate through images
+- Photos show different angles of the reported problem
+- Each report contributes 6 photos
+
+<Note>
+  When viewing a case with multiple reports, you'll see photos from the most recently selected report. Click on other reports in the "Related Reports" section to view their photos.
+</Note>
+
+### Related Reports Section
+
+This expandable section shows all individual reports grouped into this case:
+
+For each report, you'll see:
+- Reporter's name and ID
+- Registration date
+- Description of the problem
+- 🔍 button to view that report's specific photos
+
+<Tip>
+  Viewing related reports helps you understand the scope and history of a problem, especially if it has been reported by multiple citizens over time.
+</Tip>
+
+### Agent Responses
+
+If government agents have responded to the case, you'll see:
+
+<CardGroup cols={1}>
+  <Card title="Response Documents">
+    Each response includes:
+    - Title and date
+    - Description of actions taken
+    - Progress photos (up to 3 images)
+    - PDF documentation (if attached)
+    - Download button for PDF reports
+  </Card>
+</CardGroup>
+
+<Warning>
+  If you see "No hay documentos disponibles" (No documents available), it means agents haven't yet responded to this case.
+</Warning>
+
+## Understanding Case Status
+
+Cases progress through three states:
+
+<Steps>
+  <Step title="Pendiente (Pending)">
+    - **Color:** Blue
+    - **Meaning:** New case awaiting agent review
+    - **What happens:** Agents are notified and can begin assessment
+  </Step>
+  
+  <Step title="En Proceso (In Progress)">
+    - **Color:** Yellow
+    - **Meaning:** Agents are actively working on the issue
+    - **What happens:** Field teams may be dispatched, repairs scheduled, or investigations ongoing
+  </Step>
+  
+  <Step title="Finalizado (Completed)">
+    - **Color:** Red
+    - **Meaning:** The issue has been resolved or closed
+    - **What happens:** Final documentation and photos are uploaded by agents
+  </Step>
+</Steps>
+
+## Interacting with Cases (Citizens)
+
+As a citizen viewing cases:
+
+✅ **You can:**
+- View all public cases on the map
+- Filter and search for specific issues
+- See detailed information about any case
+- View photos and agent responses
+- Track the status of cases you've reported
+
+❌ **You cannot:**
+- Respond to or update cases (agent-only feature)
+- Delete reports
+- Edit submitted information
+
+<Note>
+  If you need to correct information in a report, create a new report with the correct details or contact support.
+</Note>
+
+## Navigation Tips
+
+<Tip>
+  **Finding Your Reports**
+  
+  To quickly find cases you've reported:
+  1. Use location filters to narrow to your area
+  2. Look for cases created on dates when you submitted reports
+  3. Click through to verify reporter information matches your details
+</Tip>
+
+<Tip>
+  **Checking Nearby Issues**
+  
+  Before creating a new report:
+  1. Zoom into the problem location on the map
+  2. Check if markers already exist at that location
+  3. Click existing markers to see if your issue is already reported
+  4. If it matches, your problem may already be under investigation
+</Tip>
+
+<CardGroup cols={2}>
+  <Card title="Create a Report" icon="plus" href="/user-guide/creating-reports">
+    Submit a new infrastructure problem report
+  </Card>
+  <Card title="Agent Dashboard" icon="user-shield" href="/user-guide/agent-dashboard">
+    Learn about the agent view (for authorized personnel)
+  </Card>
+</CardGroup>

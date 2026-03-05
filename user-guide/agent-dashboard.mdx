@@ -1,0 +1,266 @@
+---
+title: Agent Dashboard
+description: Overview of the government agent dashboard for managing and responding to citizen reports
+---
+
+The Agent Dashboard is designed for government officials and infrastructure management personnel who are responsible for reviewing, investigating, and resolving citizen-reported infrastructure issues.
+
+<Note>
+  This section is for users with **Funcionario** (Agent) accounts. Citizens with standard accounts cannot access these features.
+</Note>
+
+## Accessing the Agent Dashboard
+
+Agents access the same platform as citizens but with additional capabilities:
+
+<Steps>
+  <Step title="Log in with agent credentials">
+    Use your authorized agent account to log into the platform. Your account must have `Id_tipo_user = 2` (Funcionario type).
+  </Step>
+  
+  <Step title="View the reports dashboard">
+    After login, you're directed to the main reports view with enhanced permissions.
+  </Step>
+</Steps>
+
+## Agent View vs. Citizen View
+
+The agent dashboard shares the same interface as the citizen view but with key differences:
+
+<CardGroup cols={2}>
+  <Card title="Citizens See" icon="user">
+    - View all cases
+    - Filter and search
+    - Read agent responses
+    - Submit new reports
+  </Card>
+  <Card title="Agents See" icon="user-shield">
+    - Everything citizens see
+    - **Plus:** "Responder caso" button
+    - **Plus:** Case update capabilities
+    - **Plus:** Status change permissions
+  </Card>
+</CardGroup>
+
+## Dashboard Components
+
+### Interactive Map Interface
+
+The map shows all active cases with color-coded markers:
+
+- **Blue** - Pending cases requiring initial review
+- **Yellow** - Cases in progress that you or other agents are addressing
+- **Red** - Completed cases with final resolutions
+
+The number on each marker indicates how many individual citizen reports are grouped into that case.
+
+<Tip>
+  Prioritize blue (pending) markers first, especially those with high report counts, as these indicate issues affecting multiple citizens.
+</Tip>
+
+### Filter and Search Tools
+
+Use the same filtering system as citizens:
+- **Problem classification** - Filter by type of infrastructure issue
+- **Geographic location** - Focus on specific departments/cities
+- **Status** - View only pending, in-progress, or completed cases
+
+These filters help you:
+- Focus on your assigned geographic area
+- Find cases matching your department's expertise
+- Track work-in-progress items
+
+### Case Data Table
+
+The sortable table displays:
+- Problem details and classification
+- Location information
+- Date created
+- Current status
+- Number of reports
+- Quick action buttons
+
+**Agent Actions:**
+- 📍 **Center map** - Locate the case geographically
+- ▶️ **View details** - Open the full case information panel
+
+## Case Detail Panel
+
+When you click to view a case, you see comprehensive information:
+
+### Header Information
+- **Case ID** and auto-generated title
+- **Date registered**
+- **Status badge** (Pendiente, En Proceso, Finalizado)
+
+### Problem Classification
+- Main problem category
+- Problem class
+- Specific problem type
+
+### Location Details
+- Department and city
+- Full street address
+- Coordinates (available in the database)
+
+### Reporter Information
+- ID document type
+- Identification number
+- Full name
+
+<Warning>
+  Reporter information is sensitive. Handle this data according to your agency's privacy and data protection policies.
+</Warning>
+
+### Problem Description
+- Citizen's written description of the issue
+- Details about impact and urgency
+
+### Photo Evidence
+A carousel showing 6 photos from each report:
+- Multiple angles of the problem
+- Context and surrounding area
+- Specific damage or issues
+
+<Tip>
+  Review all photos carefully before responding. They often contain details not mentioned in the written description.
+</Tip>
+
+### Related Reports
+
+If multiple citizens reported the same issue, you'll see:
+- List of all reports grouped into this case
+- Each reporter's information and description
+- Ability to view photos from each individual report
+
+**Why this matters:**
+- Multiple reports indicate severity or widespread impact
+- Different perspectives help understand the full scope
+- Varied descriptions may reveal additional issues
+
+### Previous Agent Responses
+
+A timeline of all responses submitted by agents:
+- Response date and time
+- Agent's description of actions taken
+- Progress photos (if uploaded)
+- PDF documentation (if attached)
+
+This history helps you:
+- Understand what's already been done
+- Avoid duplicating efforts
+- Continue work started by other agents
+
+## Agent Capabilities
+
+As an authorized agent, you can:
+
+<CardGroup cols={2}>
+  <Card title="Respond to Cases" icon="reply">
+    Update case status, add notes, and upload evidence of work completed
+  </Card>
+  <Card title="Change Status" icon="toggle-on">
+    Move cases from Pending → In Progress → Completed
+  </Card>
+  <Card title="Upload Documentation" icon="file-upload">
+    Add photos (up to 3) and PDF reports documenting your response
+  </Card>
+  <Card title="Track Progress" icon="list-check">
+    Monitor all cases in your area and their current status
+  </Card>
+</CardGroup>
+
+## Workflow Overview
+
+A typical agent workflow:
+
+<Steps>
+  <Step title="Review pending cases">
+    Filter for "Pendiente" status to see new reports requiring attention.
+  </Step>
+  
+  <Step title="Assess and prioritize">
+    - Review case details, photos, and descriptions
+    - Check if multiple reports exist (high priority)
+    - Consider safety hazards and public impact
+  </Step>
+  
+  <Step title="Update to In Progress">
+    When you begin work on a case, use the "Responder caso" button to change status to "En Proceso".
+  </Step>
+  
+  <Step title="Perform field work">
+    - Visit the location
+    - Assess the situation in person
+    - Coordinate repairs or interventions
+    - Document your activities
+  </Step>
+  
+  <Step title="Submit response">
+    Upload photos and documents showing work completed, and update status to "Finalizado" when resolved.
+  </Step>
+</Steps>
+
+## Data and Reporting
+
+The dashboard provides insights through:
+- **Total case count** by status
+- **Geographic distribution** via the map
+- **Trend analysis** by filtering date ranges
+- **Problem type statistics** through classification filters
+
+<Note>
+  While the current interface doesn't show analytics dashboards, the underlying data structure supports reporting and analysis by administrators.
+</Note>
+
+## Best Practices for Agents
+
+<Tip>
+  **Respond Promptly**
+  
+  Even if you can't immediately resolve an issue, acknowledge the report by:
+  - Changing status to "En Proceso"
+  - Adding a note about assessment or timeline
+  - Providing citizen reassurance that the issue is being addressed
+</Tip>
+
+<Tip>
+  **Document Thoroughly**
+  
+  When submitting responses:
+  - Take clear photos of the site before, during, and after work
+  - Write detailed descriptions of actions taken
+  - Include relevant reference numbers or work orders
+  - Attach official documentation when available
+</Tip>
+
+<Tip>
+  **Coordinate with Related Reports**
+  
+  When a case has multiple reports:
+  - Review all descriptions for differing details
+  - Check if the issue is larger than initially apparent
+  - Consider if a systemic problem needs broader intervention
+</Tip>
+
+<Warning>
+  Always verify you have permission to access and respond to cases. Only authorized government personnel should have Funcionario accounts.
+</Warning>
+
+## Session Management
+
+Like citizens, agents have sessions that store:
+- User ID and type (Funcionario)
+- Name and identification
+- Email and demographic info
+
+Always log out when finished, especially on shared workstations.
+
+<CardGroup cols={2}>
+  <Card title="Responding to Cases" icon="reply-all" href="/user-guide/responding-to-cases">
+    Detailed guide on submitting case responses
+  </Card>
+  <Card title="View Reports" icon="map" href="/user-guide/viewing-reports">
+    Learn about the shared viewing interface
+  </Card>
+</CardGroup>

@@ -1,0 +1,232 @@
+---
+title: 'Deployment Prerequisites'
+description: 'System requirements and prerequisites for deploying Quejas Ciudadanas'
+icon: 'clipboard-check'
+---
+
+## Overview
+
+Before deploying Quejas Ciudadanas to a production environment, ensure your infrastructure meets the following requirements. This system is built on ASP.NET Core 8.0 and requires specific server components.
+
+## Server Requirements
+
+### Operating System
+
+<Note>
+  Quejas Ciudadanas is designed to run on Windows Server with IIS (Internet Information Services).
+</Note>
+
+**Recommended:**
+- Windows Server 2019 or later
+- Windows Server 2016 (minimum)
+
+**Alternative:**
+- Windows 10/11 Professional or Enterprise (for testing environments)
+
+### Hardware Requirements
+
+<CardGroup cols={2}>
+  <Card title="Minimum" icon="server">
+    - **CPU**: 2 cores
+    - **RAM**: 4 GB
+    - **Storage**: 20 GB free space
+    - **Network**: 100 Mbps
+  </Card>
+  
+  <Card title="Recommended" icon="server">
+    - **CPU**: 4+ cores
+    - **RAM**: 8 GB or more
+    - **Storage**: 50 GB+ SSD
+    - **Network**: 1 Gbps
+  </Card>
+</CardGroup>
+
+## Required Software Components
+
+### .NET Runtime
+
+<Steps>
+  <Step title="Install .NET 8.0 Runtime">
+    Download and install the **.NET 8.0 Runtime** (or SDK for development servers):
+    
+    - [.NET 8.0 Runtime Download](https://dotnet.microsoft.com/download/dotnet/8.0)
+    - Choose **ASP.NET Core Runtime 8.0** for hosting
+    - Install both x64 and x86 versions if unsure of your IIS application pool configuration
+  </Step>
+  
+  <Step title="Verify Installation">
+    Open Command Prompt and verify the installation:
+    
+    ```bash
+    dotnet --list-runtimes
+    ```
+    
+    You should see `Microsoft.AspNetCore.App 8.0.x` in the output.
+  </Step>
+</Steps>
+
+### Internet Information Services (IIS)
+
+<Warning>
+  IIS must be properly configured with the ASP.NET Core Module to host the application.
+</Warning>
+
+**Required IIS Features:**
+- Web Server (IIS) role
+- ASP.NET Core Module (ANCM)
+- Application Development features:
+  - .NET Extensibility
+  - ASP.NET
+  - ISAPI Extensions
+  - ISAPI Filters
+- Common HTTP Features:
+  - Static Content
+  - Default Document
+  - HTTP Errors
+- Health and Diagnostics:
+  - HTTP Logging
+  - Request Monitor
+
+<Tip>
+  Install the ASP.NET Core Hosting Bundle which includes both the .NET Runtime and IIS support:
+  
+  [Download ASP.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/8.0)
+</Tip>
+
+### SQL Server Database
+
+The application requires Microsoft SQL Server for data persistence.
+
+**Supported Versions:**
+- SQL Server 2022 (recommended)
+- SQL Server 2019
+- SQL Server 2017
+- Azure SQL Database
+
+**Required Components:**
+- Database Engine Services
+- SQL Server Management Tools (recommended)
+
+**Database Requirements:**
+- Minimum 5 GB storage for database
+- SQL Server Authentication or Windows Authentication
+- Database user with appropriate permissions:
+  - `db_datareader`
+  - `db_datawriter`
+  - `EXECUTE` permissions on stored procedures
+
+<Note>
+  The application uses Entity Framework Core with SQL Server provider version 9.0.4.
+</Note>
+
+## Network Requirements
+
+### Firewall Configuration
+
+<Steps>
+  <Step title="Open HTTP/HTTPS Ports">
+    Ensure the following ports are accessible:
+    
+    - **Port 80**: HTTP traffic
+    - **Port 443**: HTTPS traffic (required for production)
+  </Step>
+  
+  <Step title="Database Connectivity">
+    - **Port 1433**: Default SQL Server port (if database is on separate server)
+    - Ensure firewall rules allow communication between web server and database server
+  </Step>
+</Steps>
+
+### SSL Certificate
+
+<Warning>
+  Production deployments must use HTTPS with a valid SSL certificate.
+</Warning>
+
+**Options:**
+- Purchase a commercial SSL certificate
+- Use Let's Encrypt for free SSL certificates
+- Use a certificate from your organization's certificate authority
+
+## Application Dependencies
+
+The application uses the following NuGet packages (automatically restored during deployment):
+
+```xml
+<PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="9.0.4" />
+<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="9.0.4" />
+```
+
+## Storage Requirements
+
+### File Upload Storage
+
+The application handles file uploads for citizen reports (photos and attachments).
+
+<Note>
+  Plan for adequate storage based on expected usage:
+  - Typical photo: 2-5 MB
+  - Documents: 1-10 MB
+  - Estimate: 50-100 MB per 100 reports
+</Note>
+
+**Storage Considerations:**
+- Configure a dedicated folder with appropriate IIS permissions
+- Consider implementing storage quotas
+- Plan for backup and archival strategies
+
+### Logging and Diagnostics
+
+Allocate storage for application logs:
+- IIS logs: ~100 MB per week (typical)
+- Application logs: Configure based on logging level
+- Event logs: Monitor Windows Event Viewer
+
+## Security Prerequisites
+
+<Steps>
+  <Step title="Windows Updates">
+    Ensure the server has the latest Windows security updates installed.
+  </Step>
+  
+  <Step title="Antivirus Exclusions">
+    Configure antivirus to exclude:
+    - IIS worker process (`w3wp.exe`)
+    - Application deployment directory
+    - Temporary ASP.NET files directory
+  </Step>
+  
+  <Step title="User Accounts">
+    Prepare service accounts:
+    - IIS Application Pool identity (can use built-in ApplicationPoolIdentity)
+    - SQL Server database user
+    - Ensure proper permission segregation
+  </Step>
+</Steps>
+
+## Checklist
+
+Before proceeding to deployment, verify:
+
+- [ ] Windows Server 2019+ installed and updated
+- [ ] .NET 8.0 Runtime (ASP.NET Core) installed
+- [ ] IIS role installed with required features
+- [ ] ASP.NET Core Hosting Bundle installed
+- [ ] SQL Server 2017+ available and accessible
+- [ ] Database created with proper user permissions
+- [ ] Ports 80/443 open in firewall
+- [ ] SSL certificate obtained (for production)
+- [ ] Adequate storage allocated for uploads and logs
+- [ ] Backup strategy planned
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="IIS Deployment" icon="server" href="/deployment/iis-deployment">
+    Configure IIS and deploy the application
+  </Card>
+  
+  <Card title="Configuration" icon="gear" href="/deployment/configuration">
+    Configure production settings and security
+  </Card>
+</CardGroup>

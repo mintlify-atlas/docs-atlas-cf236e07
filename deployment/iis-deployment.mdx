@@ -1,0 +1,468 @@
+---
+title: 'IIS Deployment'
+description: 'Step-by-step guide to deploying Quejas Ciudadanas on IIS'
+icon: 'server'
+---
+
+## Overview
+
+This guide walks through the complete process of deploying Quejas Ciudadanas to Internet Information Services (IIS) on Windows Server.
+
+<Warning>
+  Ensure you have completed all [prerequisites](/deployment/prerequisites) before beginning deployment.
+</Warning>
+
+## Pre-Deployment Steps
+
+### Verify Installation Requirements
+
+<Steps>
+  <Step title="Check .NET Runtime">
+    Open PowerShell as Administrator and verify .NET 8.0 is installed:
+    
+    ```powershell
+    dotnet --list-runtimes | Select-String "Microsoft.AspNetCore.App 8.0"
+    ```
+    
+    If not found, install the [ASP.NET Core 8.0 Runtime](https://dotnet.microsoft.com/download/dotnet/8.0).
+  </Step>
+  
+  <Step title="Verify IIS Installation">
+    Check if IIS is installed and running:
+    
+    ```powershell
+    Get-Service W3SVC
+    ```
+    
+    The service should show `Running`. If not:
+    
+    ```powershell
+    Install-WindowsFeature -Name Web-Server -IncludeManagementTools
+    ```
+  </Step>
+  
+  <Step title="Install ASP.NET Core Module">
+    The ASP.NET Core Module (ANCM) is required for hosting .NET Core applications in IIS.
+    
+    1. Download the [.NET Core Hosting Bundle](https://dotnet.microsoft.com/download/dotnet/8.0)
+    2. Run the installer
+    3. Restart IIS after installation:
+    
+    ```powershell
+    net stop was /y
+    net start w3svc
+    ```
+  </Step>
+</Steps>
+
+## Build and Publish the Application
+
+### Local Build and Publish
+
+<Steps>
+  <Step title="Open the Project">
+    Navigate to your project directory:
+    
+    ```bash
+    cd path/to/quejas_ciudadanas
+    ```
+  </Step>
+  
+  <Step title="Restore Dependencies">
+    ```bash
+    dotnet restore
+    ```
+  </Step>
+  
+  <Step title="Build for Release">
+    ```bash
+    dotnet build --configuration Release
+    ```
+  </Step>
+  
+  <Step title="Publish the Application">
+    Create a publish folder with all deployment files:
+    
+    ```bash
+    dotnet publish --configuration Release --output ./publish
+    ```
+    
+    This creates a self-contained deployment package in the `./publish` directory.
+  </Step>
+</Steps>
+
+<Tip>
+  For production deployments, consider using CI/CD pipelines (Azure DevOps, GitHub Actions) to automate the build and publish process.
+</Tip>
+
+## Configure IIS
+
+### Create Application Pool
+
+<Steps>
+  <Step title="Open IIS Manager">
+    Press `Win + R`, type `inetmgr`, and press Enter.
+  </Step>
+  
+  <Step title="Create New Application Pool">
+    1. In the left panel, select the server node
+    2. Double-click **Application Pools**
+    3. In the Actions panel, click **Add Application Pool**
+    4. Configure:
+       - **Name**: `QuejasCiudadanasAppPool`
+       - **.NET CLR version**: **No Managed Code** (important for .NET Core)
+       - **Managed pipeline mode**: Integrated
+    5. Click **OK**
+  </Step>
+  
+  <Step title="Configure Application Pool Identity">
+    1. Select the newly created application pool
+    2. Click **Advanced Settings** in the Actions panel
+    3. Under **Process Model**, set:
+       - **Identity**: ApplicationPoolIdentity (recommended)
+       - **Idle Time-out (minutes)**: 20 (or 0 for always-on)
+    4. Under **Recycling**:
+       - **Regular Time Interval (minutes)**: 1740 (29 hours) or adjust as needed
+    5. Click **OK**
+  </Step>
+</Steps>
+
+<Note>
+  **ApplicationPoolIdentity** is the recommended security identity. It provides isolation and minimal permissions.
+</Note>
+
+### Create IIS Website
+
+<Steps>
+  <Step title="Create Deployment Directory">
+    Create a folder for the application files:
+    
+    ```powershell
+    New-Item -Path "C:\inetpub\quejas_ciudadanas" -ItemType Directory
+    ```
+  </Step>
+  
+  <Step title="Copy Published Files">
+    Copy all files from the publish folder to the deployment directory:
+    
+    ```powershell
+    Copy-Item -Path "./publish/*" -Destination "C:\inetpub\quejas_ciudadanas" -Recurse
+    ```
+  </Step>
+  
+  <Step title="Set Folder Permissions">
+    Grant the application pool identity read/write permissions:
+    
+    ```powershell
+    $acl = Get-Acl "C:\inetpub\quejas_ciudadanas"
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "IIS AppPool\QuejasCiudadanasAppPool",
+        "ReadAndExecute",
+        "ContainerInherit,ObjectInherit",
+        "None",
+        "Allow"
+    )
+    $acl.SetAccessRule($rule)
+    Set-Acl "C:\inetpub\quejas_ciudadanas" $acl
+    ```
+    
+    <Warning>
+      If the application handles file uploads, grant **Modify** permissions to the uploads directory.
+    </Warning>
+  </Step>
+  
+  <Step title="Create IIS Site">
+    1. In IIS Manager, right-click **Sites** → **Add Website**
+    2. Configure:
+       - **Site name**: Quejas Ciudadanas
+       - **Application pool**: QuejasCiudadanasAppPool
+       - **Physical path**: `C:\inetpub\quejas_ciudadanas`
+       - **Binding**:
+         - Type: http
+         - IP address: All Unassigned
+         - Port: 80
+         - Host name: (your domain, e.g., `quejas.example.com`)
+    3. Click **OK**
+  </Step>
+</Steps>
+
+## Configure web.config
+
+<Note>
+  The `dotnet publish` command automatically generates a `web.config` file. However, you may need to customize it.
+</Note>
+
+### Basic web.config Structure
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <location path="." inheritInChildApplications="false">
+    <system.webServer>
+      <handlers>
+        <add name="aspNetCore" path="*" verb="*" 
+             modules="AspNetCoreModuleV2" 
+             resourceType="Unspecified" />
+      </handlers>
+      <aspNetCore processPath="dotnet" 
+                  arguments=".\quejas_ciudadanas.dll" 
+                  stdoutLogEnabled="false" 
+                  stdoutLogFile=".\logs\stdout" 
+                  hostingModel="inprocess">
+        <environmentVariables>
+          <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+        </environmentVariables>
+      </aspNetCore>
+    </system.webServer>
+  </location>
+</configuration>
+```
+
+### Key Configuration Options
+
+<AccordionGroup>
+  <Accordion title="Hosting Model">
+    ```xml
+    hostingModel="inprocess"  <!-- Recommended for better performance -->
+    ```
+    
+    **Options:**
+    - `inprocess`: Application runs in the IIS worker process (better performance)
+    - `outofprocess`: Application runs as a separate process
+  </Accordion>
+  
+  <Accordion title="Environment Variables">
+    ```xml
+    <environmentVariables>
+      <environmentVariable name="ASPNETCORE_ENVIRONMENT" value="Production" />
+    </environmentVariables>
+    ```
+    
+    Set to `Production` to:
+    - Disable detailed error pages
+    - Enable response caching
+    - Use production configuration
+  </Accordion>
+  
+  <Accordion title="Logging Configuration">
+    ```xml
+    stdoutLogEnabled="true"
+    stdoutLogFile=".\logs\stdout"
+    ```
+    
+    Enable logging for troubleshooting:
+    1. Create a `logs` folder in the application directory
+    2. Set `stdoutLogEnabled="true"` temporarily
+    3. Grant write permissions to the logs folder
+    
+    <Warning>
+      Disable stdout logging in production to avoid performance overhead.
+    </Warning>
+  </Accordion>
+</AccordionGroup>
+
+## Configure SSL/HTTPS
+
+<Warning>
+  **Production deployments must use HTTPS.** HTTP should redirect to HTTPS.
+</Warning>
+
+### Install SSL Certificate
+
+<Steps>
+  <Step title="Obtain SSL Certificate">
+    Options:
+    - Purchase from a commercial Certificate Authority (CA)
+    - Use Let's Encrypt with [win-acme](https://www.win-acme.com/)
+    - Use an organizational CA certificate
+  </Step>
+  
+  <Step title="Import Certificate to IIS">
+    1. In IIS Manager, select the server node
+    2. Double-click **Server Certificates**
+    3. Click **Import** in the Actions panel
+    4. Browse to your `.pfx` certificate file
+    5. Enter the certificate password
+    6. Click **OK**
+  </Step>
+  
+  <Step title="Add HTTPS Binding">
+    1. In IIS Manager, select your website
+    2. Click **Bindings** in the Actions panel
+    3. Click **Add**
+    4. Configure:
+       - Type: https
+       - IP address: All Unassigned
+       - Port: 443
+       - Host name: your domain
+       - SSL certificate: Select your imported certificate
+    5. Check **Require Server Name Indication** if hosting multiple HTTPS sites
+    6. Click **OK**
+  </Step>
+  
+  <Step title="Configure HTTP to HTTPS Redirect">
+    Add to your `web.config` inside `<system.webServer>`:
+    
+    ```xml
+    <rewrite>
+      <rules>
+        <rule name="HTTP to HTTPS redirect" stopProcessing="true">
+          <match url="(.*)" />
+          <conditions>
+            <add input="{HTTPS}" pattern="off" />
+          </conditions>
+          <action type="Redirect" url="https://{HTTP_HOST}/{R:1}" 
+                  redirectType="Permanent" />
+        </rule>
+      </rules>
+    </rewrite>
+    ```
+    
+    <Note>
+      This requires the **URL Rewrite** module. Install from [IIS URL Rewrite](https://www.iis.net/downloads/microsoft/url-rewrite).
+    </Note>
+  </Step>
+</Steps>
+
+## Configure Static Files and Uploads
+
+<Steps>
+  <Step title="Create Uploads Directory">
+    ```powershell
+    New-Item -Path "C:\inetpub\quejas_ciudadanas\wwwroot\uploads" -ItemType Directory
+    ```
+  </Step>
+  
+  <Step title="Set Permissions">
+    Grant write permissions for file uploads:
+    
+    ```powershell
+    $acl = Get-Acl "C:\inetpub\quejas_ciudadanas\wwwroot\uploads"
+    $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        "IIS AppPool\QuejasCiudadanasAppPool",
+        "Modify",
+        "ContainerInherit,ObjectInherit",
+        "None",
+        "Allow"
+    )
+    $acl.SetAccessRule($rule)
+    Set-Acl "C:\inetpub\quejas_ciudadanas\wwwroot\uploads" $acl
+    ```
+  </Step>
+</Steps>
+
+## Verify Deployment
+
+<Steps>
+  <Step title="Start the Website">
+    In IIS Manager:
+    1. Select your website
+    2. Click **Start** in the Actions panel (if not already started)
+  </Step>
+  
+  <Step title="Test Locally">
+    On the server, open a browser and navigate to:
+    ```
+    http://localhost
+    ```
+    
+    You should see the application home page.
+  </Step>
+  
+  <Step title="Check Application Pool Status">
+    Verify the application pool is running:
+    - In IIS Manager, go to **Application Pools**
+    - Ensure **QuejasCiudadanasAppPool** shows **Started**
+  </Step>
+  
+  <Step title="Test Database Connection">
+    Navigate to a page that requires database access to verify connectivity.
+    
+    <Warning>
+      If you see a database connection error, verify:
+      - Connection string in `appsettings.json`
+      - SQL Server is accessible from the web server
+      - Database user has appropriate permissions
+    </Warning>
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="502.5 - Process Failure">
+    **Cause**: Application failed to start.
+    
+    **Solution**:
+    1. Enable stdout logging in `web.config`:
+       ```xml
+       stdoutLogEnabled="true"
+       stdoutLogFile=".\logs\stdout"
+       ```
+    2. Create the logs directory
+    3. Restart the site and check logs
+    4. Common issues:
+       - Missing .NET Runtime
+       - Incorrect DLL name in `web.config`
+       - Permission issues
+  </Accordion>
+  
+  <Accordion title="500.30 - In-Process Start Failure">
+    **Cause**: Application startup error.
+    
+    **Solution**:
+    - Check Event Viewer → Windows Logs → Application
+    - Look for ASP.NET Core errors
+    - Verify `appsettings.json` configuration
+    - Check database connectivity
+  </Accordion>
+  
+  <Accordion title="Connection String Errors">
+    **Cause**: Cannot connect to SQL Server.
+    
+    **Solution**:
+    1. Verify SQL Server is running
+    2. Test connection from server:
+       ```powershell
+       Test-NetConnection -ComputerName <sql-server> -Port 1433
+       ```
+    3. Check connection string format in `appsettings.json`
+    4. Verify database user credentials
+    5. Ensure SQL Server allows remote connections
+  </Accordion>
+  
+  <Accordion title="Static Files Not Loading">
+    **Cause**: Static files middleware not configured or files missing.
+    
+    **Solution**:
+    - Verify `wwwroot` folder exists in deployment directory
+    - Check that `app.UseStaticFiles()` is in `Program.cs`
+    - Verify file permissions on `wwwroot`
+  </Accordion>
+</AccordionGroup>
+
+## Performance Optimization
+
+<CardGroup cols={2}>
+  <Card title="Enable Response Compression" icon="compress">
+    Already configured in the application for better performance.
+  </Card>
+  
+  <Card title="Configure Output Caching" icon="clock">
+    IIS can cache responses to reduce server load for static content.
+  </Card>
+  
+  <Card title="Enable HTTP/2" icon="bolt">
+    Ensure your server and certificate support HTTP/2 for improved performance.
+  </Card>
+  
+  <Card title="Monitor Application Pool" icon="chart-line">
+    Configure recycling and monitoring to maintain optimal performance.
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<Card title="Production Configuration" icon="gear" href="/deployment/configuration">
+  Configure production settings, security, and connection string encryption
+</Card>

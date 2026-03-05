@@ -1,0 +1,683 @@
+---
+title: 'Stored Procedures'
+description: 'Database stored procedures reference'
+icon: 'database'
+---
+
+The Quejas Ciudadanas application uses SQL Server stored procedures for all database operations. This provides security, performance optimization, and separation of concerns.
+
+<Info>
+  All stored procedures are called via Entity Framework Core's `FromSqlRaw` method with parameterized queries to prevent SQL injection.
+</Info>
+
+---
+
+## Authentication Procedures
+
+### sp_validar_login
+
+Validates user credentials and returns user information for session creation.
+
+#### Parameters
+
+<ParamField path="@Identificacion" type="string" required>
+  User's identification number
+</ParamField>
+
+<ParamField path="@Clave" type="string" required>
+  User's password (should be hashed)
+</ParamField>
+
+#### Returns
+
+Single row with user information or no rows if authentication fails:
+
+<ResponseField name="Id_user" type="int">
+  User's unique identifier
+</ResponseField>
+
+<ResponseField name="Id_tipo_user" type="int">
+  User type ID (1 = Citizen, 2 = Agent, etc.)
+</ResponseField>
+
+<ResponseField name="TipoUsuario" type="string">
+  User type description
+</ResponseField>
+
+<ResponseField name="TipoIdentificacion" type="string">
+  Identification document type
+</ResponseField>
+
+<ResponseField name="Identificacion" type="string">
+  Identification number
+</ResponseField>
+
+<ResponseField name="Nombre" type="string">
+  First name
+</ResponseField>
+
+<ResponseField name="Apellido" type="string">
+  Last name
+</ResponseField>
+
+<ResponseField name="Correo" type="string">
+  Email address
+</ResponseField>
+
+<ResponseField name="FechaNacimiento" type="DateTime">
+  Date of birth
+</ResponseField>
+
+<ResponseField name="Genero" type="string">
+  Gender description
+</ResponseField>
+
+#### Usage in Code
+
+```csharp
+var identificacionParam = new SqlParameter("@Identificacion", model.NumeroIdentificacion_login);
+var claveParam = new SqlParameter("@Clave", model.Contrasena_login);
+
+var result = await LoginTemp
+    .FromSqlRaw("EXEC sp_validar_login @Identificacion, @Clave", 
+                identificacionParam, claveParam)
+    .ToListAsync();
+
+return result.FirstOrDefault();
+```
+
+---
+
+### sp_registrar_usuario
+
+Creates a new user account in the system.
+
+#### Parameters
+
+<ParamField path="@Id_tipo_user" type="int" required>
+  User type (1 = Citizen, 2 = Agent)
+</ParamField>
+
+<ParamField path="@Id_identificacion" type="string" required>
+  Identification document type ID
+</ParamField>
+
+<ParamField path="@Identificacion_reg" type="int" required>
+  Identification number
+</ParamField>
+
+<ParamField path="@Nombre" type="string" required>
+  First name
+</ParamField>
+
+<ParamField path="@Apellido" type="string" required>
+  Last name
+</ParamField>
+
+<ParamField path="@Correo" type="string" required>
+  Email address
+</ParamField>
+
+<ParamField path="@FechaNacimiento" type="DateTime" required>
+  Date of birth
+</ParamField>
+
+<ParamField path="@Id_genero" type="int" required>
+  Gender ID
+</ParamField>
+
+<ParamField path="@CLAVE" type="string" required>
+  Password (should be hashed before passing)
+</ParamField>
+
+#### Returns
+
+<ResponseField name="NumeroIdentificacion_login" type="string">
+  Registered identification number
+</ResponseField>
+
+<ResponseField name="Contrasena_login" type="string">
+  Password for auto-login
+</ResponseField>
+
+<ResponseField name="Resultado" type="string">
+  "1" if successful, "0" or error code if failed
+</ResponseField>
+
+#### Usage in Code
+
+```csharp
+var parametros = new[]
+{
+    new SqlParameter("@Id_tipo_user", model.tipo_usuario),
+    new SqlParameter("@Id_identificacion", model.tipo_doc_regist),
+    new SqlParameter("@Identificacion_reg", model.numero_doc_regist),
+    new SqlParameter("@Nombre", model.nombre_regist),
+    new SqlParameter("@Apellido", model.apellido_regist),
+    new SqlParameter("@Correo", model.email_regist),
+    new SqlParameter("@FechaNacimiento", model.fech_nacimien_regist),
+    new SqlParameter("@Id_genero", model.sexo_regist),
+    new SqlParameter("@CLAVE", model.clave_regist)
+};
+
+var result = await RegisterTemp
+    .FromSqlRaw("EXEC sp_registrar_usuario @Id_tipo_user, @Id_identificacion, " +
+                "@Identificacion_reg, @Nombre, @Apellido, @Correo, " +
+                "@FechaNacimiento, @Id_genero, @CLAVE", parametros)
+    .ToListAsync();
+```
+
+---
+
+## Report Management Procedures
+
+### sp_guardar_report_ciudadanos
+
+Creates a new citizen report and associated case (or adds to existing case based on geohash proximity).
+
+#### Parameters
+
+<ParamField path="@Id_user" type="int" required>
+  User ID from session
+</ParamField>
+
+<ParamField path="@id_estado" type="int" required>
+  Initial case status (typically 1 for "New")
+</ParamField>
+
+<ParamField path="@Latitud" type="string" required>
+  Geographic latitude coordinate
+</ParamField>
+
+<ParamField path="@Longitud" type="string" required>
+  Geographic longitude coordinate
+</ParamField>
+
+<ParamField path="@Geohash" type="string" required>
+  Geohash string for spatial grouping
+</ParamField>
+
+<ParamField path="@TipoProblema" type="string" required>
+  Problem type ID
+</ParamField>
+
+<ParamField path="@Ciudad" type="string" required>
+  City location code
+</ParamField>
+
+<ParamField path="@Direccion" type="string" required>
+  Street address or description
+</ParamField>
+
+<ParamField path="@Descripcion" type="string" required>
+  Detailed problem description
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Id_reporte" type="int">
+  Newly created report ID
+</ResponseField>
+
+<ResponseField name="llave" type="string">
+  Security key for report identification
+</ResponseField>
+
+<ResponseField name="Id_caso" type="int">
+  Case ID (new or existing)
+</ResponseField>
+
+<ResponseField name="Id_user_ciudadano" type="int">
+  Citizen user ID
+</ResponseField>
+
+#### Geohash Grouping Logic
+
+The stored procedure uses geohash to automatically group similar reports:
+- Reports with matching geohash and problem type are grouped into same case
+- This creates clusters of related infrastructure issues in the same location
+- Reduces duplicate work for government agents
+
+---
+
+### sp_guardar_foto_reporte
+
+Saves photo metadata for a citizen report.
+
+#### Parameters
+
+<ParamField path="@Id_reporte" type="int" required>
+  Report ID from sp_guardar_report_ciudadanos
+</ParamField>
+
+<ParamField path="@Nombre_imagen" type="string" required>
+  Filename (e.g., "evidencia_1.jpg")
+</ParamField>
+
+<ParamField path="@Ruta_foto" type="string" required>
+  Relative file path (e.g., "/evidencias/123_456_789_key/evidencia_1.jpg")
+</ParamField>
+
+#### Returns
+
+<ResponseField name="ErrorNumber" type="int">
+  0 if successful, error code otherwise
+</ResponseField>
+
+<ResponseField name="ErrorMessage" type="string">
+  Empty if successful, error description otherwise
+</ResponseField>
+
+---
+
+## Query Procedures
+
+### sp_ConsultaCasosFiltrados
+
+Searches cases with multiple filter criteria for map display.
+
+#### Parameters
+
+<ParamField path="@problemaSelect" type="int" required>
+  Problem category ID (0 = all)
+</ParamField>
+
+<ParamField path="@claseProblemaSelect" type="int" required>
+  Problem class ID (0 = all)
+</ParamField>
+
+<ParamField path="@tipoProblemaSelect" type="int" required>
+  Problem type ID (0 = all)
+</ParamField>
+
+<ParamField path="@selectDepto" type="string" required>
+  Department code ("0000" = all)
+</ParamField>
+
+<ParamField path="@selectCiudad" type="string" required>
+  City code ("0000" = all)
+</ParamField>
+
+<ParamField path="@Estado_del_caso" type="int" required>
+  Case status ID (0 = all)
+</ParamField>
+
+#### Returns
+
+Result set with one row per case:
+
+<ResponseField name="Id_caso" type="int">
+  Case identifier
+</ResponseField>
+
+<ResponseField name="latitud" type="string">
+  Latitude coordinate
+</ResponseField>
+
+<ResponseField name="longitud" type="string">
+  Longitude coordinate
+</ResponseField>
+
+<ResponseField name="Problema" type="string">
+  Problem category name
+</ResponseField>
+
+<ResponseField name="Clase_problema" type="string">
+  Problem class name
+</ResponseField>
+
+<ResponseField name="Tipo_problema" type="string">
+  Problem type name
+</ResponseField>
+
+<ResponseField name="Departamento" type="string">
+  Department name
+</ResponseField>
+
+<ResponseField name="Ciudad" type="string">
+  City name
+</ResponseField>
+
+<ResponseField name="Fecha_registro" type="DateTime">
+  Case creation date
+</ResponseField>
+
+<ResponseField name="Estado" type="int">
+  Current status ID
+</ResponseField>
+
+<ResponseField name="Num_quejas" type="int">
+  Number of reports grouped in this case
+</ResponseField>
+
+---
+
+### Sp_consulta_reportes_unicos
+
+Retrieves detailed information for specific reports within a case.
+
+#### Parameters
+
+<ParamField path="@IdCaso" type="int" required>
+  Case ID to query
+</ParamField>
+
+<ParamField path="@IdReporte" type="int" required>
+  Specific report ID, or -1 for all reports in case
+</ParamField>
+
+#### Returns
+
+Result set with report details:
+
+<ResponseField name="Id_caso" type="int">
+  Case ID
+</ResponseField>
+
+<ResponseField name="Id_reporte" type="int">
+  Report ID
+</ResponseField>
+
+<ResponseField name="Titulo" type="string">
+  Report title
+</ResponseField>
+
+<ResponseField name="Problema" type="string">
+  Problem category
+</ResponseField>
+
+<ResponseField name="Clase_problema" type="string">
+  Problem class
+</ResponseField>
+
+<ResponseField name="Tipo_problema" type="string">
+  Problem type
+</ResponseField>
+
+<ResponseField name="Departamento" type="string">
+  Department
+</ResponseField>
+
+<ResponseField name="Ciudad" type="string">
+  City
+</ResponseField>
+
+<ResponseField name="Direccion" type="string">
+  Address
+</ResponseField>
+
+<ResponseField name="Fecha_registro" type="DateTime">
+  Report date
+</ResponseField>
+
+<ResponseField name="Estado" type="int">
+  Status
+</ResponseField>
+
+<ResponseField name="Num_quejas" type="int">
+  Total reports in case
+</ResponseField>
+
+<ResponseField name="Tipo_doc" type="string">
+  Reporter's ID type
+</ResponseField>
+
+<ResponseField name="Num_identificacion" type="string">
+  Reporter's ID number
+</ResponseField>
+
+<ResponseField name="Nombre_Completo" type="string">
+  Reporter's full name
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  Report description
+</ResponseField>
+
+---
+
+### Sp_obtener_fotos_reporte
+
+Retrieves photo paths for a specific report.
+
+#### Parameters
+
+<ParamField path="@IdReporte" type="int" required>
+  Report ID
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Ruta_foto" type="string">
+  Relative file path to photo (one row per photo)
+</ResponseField>
+
+---
+
+## Agent Response Procedures
+
+### sp_Guardar_RespuestaAgente
+
+Creates a new agent response to a case.
+
+#### Parameters
+
+<ParamField path="@Id_caso" type="int" required>
+  Case being responded to
+</ParamField>
+
+<ParamField path="@id_opcion_caso" type="int" required>
+  Response option/action code
+</ParamField>
+
+<ParamField path="@Descripcion" type="string" required>
+  Agent's response text
+</ParamField>
+
+#### Returns
+
+<ResponseField name="id_respuesta_agente" type="int">
+  Newly created response ID (used for file storage paths)
+</ResponseField>
+
+---
+
+### sp_guardar_foto_respuesta_agente
+
+Saves photo metadata for an agent response.
+
+#### Parameters
+
+<ParamField path="@Id_resp_agente" type="int" required>
+  Response ID from sp_Guardar_RespuestaAgente
+</ParamField>
+
+<ParamField path="@Nombre_imagen" type="string" required>
+  Photo filename (e.g., "foto_1.jpg")
+</ParamField>
+
+<ParamField path="@Ruta_foto" type="string" required>
+  Relative file path
+</ParamField>
+
+#### Returns
+
+<ResponseField name="ErrorNumber" type="int">
+  0 if successful
+</ResponseField>
+
+<ResponseField name="ErrorMessage" type="string">
+  Error description if failed
+</ResponseField>
+
+---
+
+### sp_guardar_adjunto_respuesta_agente
+
+Saves PDF attachment metadata for an agent response.
+
+#### Parameters
+
+<ParamField path="@Id_resp_agente" type="int" required>
+  Response ID
+</ParamField>
+
+<ParamField path="@Nombre_imagen" type="string" required>
+  PDF filename (e.g., "pdf_1.pdf")
+</ParamField>
+
+<ParamField path="@Ruta_foto" type="string" required>
+  Relative file path
+</ParamField>
+
+#### Returns
+
+Same as sp_guardar_foto_respuesta_agente
+
+---
+
+### Sp_obtener_respuestas_agente
+
+Retrieves all agent responses for a case.
+
+#### Parameters
+
+<ParamField path="@IdCaso" type="int" required>
+  Case ID
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Id_resp_agente" type="int">
+  Response ID
+</ResponseField>
+
+<ResponseField name="Titulo" type="string">
+  Response title
+</ResponseField>
+
+<ResponseField name="Descripcion" type="string">
+  Response text
+</ResponseField>
+
+<ResponseField name="Fecha_registro" type="DateTime">
+  Response date
+</ResponseField>
+
+---
+
+### Sp_obtener_fotos_agente
+
+Retrieves photo paths for an agent response.
+
+#### Parameters
+
+<ParamField path="@IdRespAgente" type="int" required>
+  Response ID
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Ruta_foto" type="string">
+  Photo file path (one row per photo)
+</ResponseField>
+
+---
+
+### Sp_obtener_adjuntos_agente
+
+Retrieves PDF attachment paths for an agent response.
+
+#### Parameters
+
+<ParamField path="@IdRespAgente" type="int" required>
+  Response ID
+</ParamField>
+
+#### Returns
+
+<ResponseField name="Ruta_adjunto" type="string">
+  PDF file path
+</ResponseField>
+
+---
+
+## Best Practices
+
+<Tip>
+  **Parameterized Queries**: All stored procedure calls use `SqlParameter` objects to prevent SQL injection attacks.
+</Tip>
+
+<Warning>
+  **Error Handling**: Wrap all database calls in try-catch blocks. The application throws generic exceptions that should be logged for debugging.
+</Warning>
+
+<Info>
+  **Connection Management**: Entity Framework Core manages database connections automatically. No need to manually open/close connections.
+</Info>
+
+---
+
+## Usage Example
+
+Complete example of calling a stored procedure with EF Core:
+
+```csharp
+public async Task<List<CasoFiltrado>> ObtenerCasosFiltradosAsync(
+    Filtros_buscar_reportes model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@problemaSelect", model.problemaSelect),
+        new SqlParameter("@claseProblemaSelect", model.claseProblemaSelect),
+        new SqlParameter("@tipoProblemaSelect", model.tipoProblemaSelect),
+        new SqlParameter("@selectDepto", model.selectDepto),
+        new SqlParameter("@selectCiudad", model.selectCiudad),
+        new SqlParameter("@Estado_del_caso", model.Estado_del_caso)
+    };
+
+    try
+    {
+        var result = await Consulta_report
+            .FromSqlRaw(
+                "EXEC sp_ConsultaCasosFiltrados @problemaSelect, " +
+                "@claseProblemaSelect, @tipoProblemaSelect, " +
+                "@selectDepto, @selectCiudad, @Estado_del_caso", 
+                parametros)
+            .ToListAsync();
+
+        return result;
+    }
+    catch (Exception ex)
+    {
+        throw new Exception("Error al ejecutar el procedimiento almacenado", ex);
+    }
+}
+```
+
+---
+
+## Performance Considerations
+
+<Card title="AsNoTracking()" icon="gauge">
+  Use `.AsNoTracking()` for read-only queries to improve performance:
+  
+  ```csharp
+  var result = await ReporteInfraestructura
+      .FromSqlRaw("EXEC Sp_consulta_reportes_unicos @IdCaso, @IdReporte", parametros)
+      .AsNoTracking() // Improves performance for read-only data
+      .ToListAsync();
+  ```
+</Card>
+
+<Card title="Connection Pooling" icon="server">
+  Configure connection pooling in `appsettings.json` for optimal database performance:
+  
+  ```json
+  {
+    "ConnectionStrings": {
+      "DefaultConnection": "Server=...;Database=...;Min Pool Size=5;Max Pool Size=100;"
+    }
+  }
+  ```
+</Card>

@@ -1,0 +1,216 @@
+---
+title: Installation
+description: Step-by-step guide to install Quejas Ciudadanas on your system
+---
+
+## Prerequisites
+
+Before installing Quejas Ciudadanas, ensure your system meets the following requirements:
+
+<CardGroup cols={2}>
+  <Card title=".NET 8.0 SDK" icon="code">
+    Required for building and running the application
+  </Card>
+  <Card title="SQL Server" icon="database">
+    SQL Server 2016 or later (Express, Developer, or Enterprise)
+  </Card>
+  <Card title="Visual Studio" icon="window">
+    Visual Studio 2022 or Visual Studio Code (optional)
+  </Card>
+  <Card title="Git" icon="git-alt">
+    For cloning the repository
+  </Card>
+</CardGroup>
+
+<Note>
+  The application targets **.NET 8.0** specifically. Ensure you have this version installed.
+</Note>
+
+## Installation Steps
+
+<Steps>
+  <Step title="Install .NET 8.0 SDK">
+    Download and install the .NET 8.0 SDK from the official Microsoft website:
+
+    ```bash
+    # Verify installation
+    dotnet --version
+    ```
+
+    You should see version `8.0.x` or higher.
+  </Step>
+
+  <Step title="Install SQL Server">
+    Download and install SQL Server:
+
+    <CodeGroup>
+    ```bash Windows
+    # Download SQL Server Express (free)
+    # Visit: https://www.microsoft.com/sql-server/sql-server-downloads
+    ```
+
+    ```bash Linux
+    # Install SQL Server on Ubuntu/Debian
+    wget -qO- https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
+    sudo add-apt-repository "$(wget -qO- https://packages.microsoft.com/config/ubuntu/20.04/mssql-server-2019.list)"
+    sudo apt-get update
+    sudo apt-get install -y mssql-server
+    sudo /opt/mssql/bin/mssql-conf setup
+    ```
+
+    ```bash macOS
+    # SQL Server is not natively supported on macOS
+    # Use Docker instead:
+    docker run -e 'ACCEPT_EULA=Y' -e 'SA_PASSWORD=YourStrong@Passw0rd' \
+      -p 1433:1433 --name sql_server \
+      -d mcr.microsoft.com/mssql/server:2019-latest
+    ```
+    </CodeGroup>
+
+    <Warning>
+      Make sure to save your SQL Server SA password securely. You'll need it for the connection string.
+    </Warning>
+  </Step>
+
+  <Step title="Clone the Repository">
+    Clone the Quejas Ciudadanas repository to your local machine:
+
+    ```bash
+    git clone <repository-url>
+    cd quejas_ciudadanas
+    ```
+  </Step>
+
+  <Step title="Restore NuGet Packages">
+    Navigate to the project directory and restore dependencies:
+
+    ```bash
+    cd quejas_ciudadanas
+    dotnet restore
+    ```
+
+    This will install the required NuGet packages:
+    - `Microsoft.EntityFrameworkCore.SqlServer` (v9.0.4)
+    - `Microsoft.EntityFrameworkCore.Tools` (v9.0.4)
+  </Step>
+
+  <Step title="Configure Connection String">
+    Update the connection string in `appsettings.json`. See the [Configuration](/configuration) page for detailed instructions.
+
+    <Note>
+      Don't commit your local connection string with credentials to version control.
+    </Note>
+  </Step>
+
+  <Step title="Set Up the Database">
+    Create the database and required stored procedures. See the [Database Setup](/database-setup) page for detailed instructions.
+  </Step>
+
+  <Step title="Build the Project">
+    Build the application to verify everything is configured correctly:
+
+    ```bash
+    dotnet build
+    ```
+
+    If successful, you should see:
+    ```
+    Build succeeded.
+        0 Warning(s)
+        0 Error(s)
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    Start the application:
+
+    ```bash
+    dotnet run
+    ```
+
+    The application will start and display the URLs it's listening on:
+    ```
+    info: Microsoft.Hosting.Lifetime[14]
+          Now listening on: http://localhost:5000
+          Now listening on: https://localhost:5001
+    ```
+
+    Open your browser and navigate to `https://localhost:5001` to access the application.
+  </Step>
+</Steps>
+
+## Verify Installation
+
+To verify the installation was successful:
+
+1. Open your browser to the application URL
+2. The home page should load without errors
+3. Check the application logs for any connection issues
+4. Try accessing the login page
+
+<Note>
+  If you encounter any database connection errors, verify your connection string in `appsettings.json` and ensure SQL Server is running.
+</Note>
+
+## IDE Setup (Optional)
+
+### Visual Studio 2022
+
+1. Open `quejas_ciudadanas.sln`
+2. Set `quejas_ciudadanas` as the startup project
+3. Press F5 to run with debugging
+
+### Visual Studio Code
+
+1. Install the C# extension
+2. Open the project folder
+3. Press F5 to launch with debugging
+4. Select ".NET Core" when prompted
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Build Errors">
+    **Issue**: Package restore fails
+    
+    **Solution**:
+    ```bash
+    # Clear NuGet cache
+    dotnet nuget locals all --clear
+    
+    # Restore packages again
+    dotnet restore
+    ```
+  </Accordion>
+
+  <Accordion title="Database Connection Failed">
+    **Issue**: Cannot connect to SQL Server
+    
+    **Solution**:
+    - Verify SQL Server is running: `services.msc` (Windows) or `systemctl status mssql-server` (Linux)
+    - Check the connection string format
+    - Ensure SQL Server authentication is enabled
+    - Verify firewall settings allow connections to port 1433
+  </Accordion>
+
+  <Accordion title="Port Already in Use">
+    **Issue**: Port 5000 or 5001 is already in use
+    
+    **Solution**:
+    Edit `Properties/launchSettings.json` to change the application URLs:
+    ```json
+    "applicationUrl": "https://localhost:7001;http://localhost:7000"
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration" icon="gear" href="/configuration">
+    Configure appsettings.json and connection strings
+  </Card>
+  <Card title="Database Setup" icon="database" href="/database-setup">
+    Set up the database schema and stored procedures
+  </Card>
+</CardGroup>

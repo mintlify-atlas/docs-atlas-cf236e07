@@ -1,0 +1,347 @@
+---
+title: Configuration
+description: Configure Quejas Ciudadanas application settings and connection strings
+---
+
+## Overview
+
+Quejas Ciudadanas uses standard ASP.NET Core configuration through `appsettings.json` files. The application supports environment-specific configurations for Development, Staging, and Production environments.
+
+## Configuration Files
+
+The application uses two main configuration files:
+
+<CardGroup cols={2}>
+  <Card title="appsettings.json" icon="file">
+    Base configuration for all environments
+  </Card>
+  <Card title="appsettings.Development.json" icon="file-code">
+    Development-specific overrides
+  </Card>
+</CardGroup>
+
+<Note>
+  Configuration files are loaded in order, with environment-specific files overriding base settings.
+</Note>
+
+## Connection Strings
+
+### SQL Server Configuration
+
+The application requires a SQL Server connection string named `QuejasCiudadanaDb`.
+
+<Steps>
+  <Step title="Locate appsettings.json">
+    Open `appsettings.json` in the project root directory.
+  </Step>
+
+  <Step title="Configure Connection String">
+    Update the connection string with your SQL Server details:
+
+    <CodeGroup>
+    ```json Local Development
+    {
+      "ConnectionStrings": {
+        "QuejasCiudadanaDb": "Server=localhost;Database=quejas_ciudadana;User Id=sa;Password=YourPassword;Encrypt=False;TrustServerCertificate=True;"
+      }
+    }
+    ```
+
+    ```json Windows Authentication
+    {
+      "ConnectionStrings": {
+        "QuejasCiudadanaDb": "Server=localhost;Database=quejas_ciudadana;Integrated Security=true;Encrypt=False;TrustServerCertificate=True;"
+      }
+    }
+    ```
+
+    ```json Remote SQL Server
+    {
+      "ConnectionStrings": {
+        "QuejasCiudadanaDb": "Server=your-server.database.windows.net;Database=quejas_ciudadana;User Id=your_username;Password=your_password;Encrypt=True;TrustServerCertificate=True;MultipleActiveResultSets=True;"
+      }
+    }
+    ```
+
+    ```json Azure SQL Database
+    {
+      "ConnectionStrings": {
+        "QuejasCiudadanaDb": "Server=tcp:your-server.database.windows.net,1433;Database=quejas_ciudadana;User Id=your_username@your-server;Password=your_password;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;MultipleActiveResultSets=True;"
+      }
+    }
+    ```
+    </CodeGroup>
+  </Step>
+</Steps>
+
+### Connection String Parameters
+
+Here's a breakdown of the connection string parameters:
+
+| Parameter | Description | Example |
+|-----------|-------------|----------|
+| `Server` | SQL Server instance address | `localhost` or `server.domain.com` |
+| `Database` | Database name | `quejas_ciudadana` |
+| `User Id` | SQL Server username | `sa` or your username |
+| `Password` | SQL Server password | Your secure password |
+| `Encrypt` | Enable SSL/TLS encryption | `True` or `False` |
+| `TrustServerCertificate` | Trust server certificate | `True` or `False` |
+| `MultipleActiveResultSets` | Enable MARS | `True` (recommended) |
+| `Integrated Security` | Use Windows Authentication | `true` (Windows only) |
+
+<Warning>
+  **Never commit passwords to version control!** Use environment variables or user secrets for sensitive data.
+</Warning>
+
+## Application Settings
+
+### Complete Configuration Structure
+
+Here's the complete `appsettings.json` structure:
+
+```json appsettings.json
+{
+  "ConnectionStrings": {
+    "QuejasCiudadanaDb": "Server=localhost;Database=quejas_ciudadana;User Id=sa;Password=YourPassword;Encrypt=False;TrustServerCertificate=True;"
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+### Logging Configuration
+
+The application uses ASP.NET Core's built-in logging:
+
+```json
+"Logging": {
+  "LogLevel": {
+    "Default": "Information",
+    "Microsoft.AspNetCore": "Warning",
+    "Microsoft.EntityFrameworkCore.Database.Command": "Information"
+  }
+}
+```
+
+**Log Levels:**
+- `Trace` - Most detailed logs
+- `Debug` - Debugging information
+- `Information` - General informational messages
+- `Warning` - Warning messages
+- `Error` - Error messages
+- `Critical` - Critical failures
+
+<Note>
+  Set `Microsoft.EntityFrameworkCore.Database.Command` to `Information` to see SQL queries in the logs (useful for debugging).
+</Note>
+
+### Allowed Hosts
+
+```json
+"AllowedHosts": "*"
+```
+
+For production, restrict allowed hosts:
+
+```json
+"AllowedHosts": "yourdomain.com;www.yourdomain.com"
+```
+
+## Session Configuration
+
+The application is configured with session support in `Program.cs`:
+
+```csharp
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+```
+
+**Session Settings:**
+- `IdleTimeout`: Session expires after 30 minutes of inactivity
+- `HttpOnly`: Cookies are not accessible via JavaScript (security)
+- `IsEssential`: Session cookies are essential for the application
+
+<Tip>
+  You can adjust the `IdleTimeout` value based on your security and user experience requirements.
+</Tip>
+
+## Environment-Specific Configuration
+
+### Development Environment
+
+`appsettings.Development.json` can override settings for local development:
+
+```json appsettings.Development.json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+```
+
+### Production Environment
+
+Create `appsettings.Production.json` for production-specific settings:
+
+```json appsettings.Production.json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Warning",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "yourdomain.com"
+}
+```
+
+## User Secrets (Development)
+
+For local development, use User Secrets to store sensitive data:
+
+<Steps>
+  <Step title="Initialize User Secrets">
+    ```bash
+    dotnet user-secrets init
+    ```
+  </Step>
+
+  <Step title="Set Connection String">
+    ```bash
+    dotnet user-secrets set "ConnectionStrings:QuejasCiudadanaDb" "Server=localhost;Database=quejas_ciudadana;User Id=sa;Password=YourPassword;Encrypt=False;TrustServerCertificate=True;"
+    ```
+  </Step>
+
+  <Step title="List Secrets">
+    ```bash
+    dotnet user-secrets list
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  User Secrets are stored outside the project directory and are never committed to source control.
+</Note>
+
+## Environment Variables
+
+You can also use environment variables to override configuration:
+
+<CodeGroup>
+```bash Windows (CMD)
+set ConnectionStrings__QuejasCiudadanaDb=Server=localhost;Database=quejas_ciudadana;...
+dotnet run
+```
+
+```bash Windows (PowerShell)
+$env:ConnectionStrings__QuejasCiudadanaDb="Server=localhost;Database=quejas_ciudadana;..."
+dotnet run
+```
+
+```bash Linux/macOS
+export ConnectionStrings__QuejasCiudadanaDb="Server=localhost;Database=quejas_ciudadana;..."
+dotnet run
+```
+</CodeGroup>
+
+<Warning>
+  Note the double underscore `__` in environment variables to represent nested configuration sections.
+</Warning>
+
+## Entity Framework Core Configuration
+
+The application registers Entity Framework Core in `Program.cs`:
+
+```csharp Program.cs
+var connectionString = builder.Configuration.GetConnectionString("QuejasCiudadanaDb");
+builder.Services.AddDbContext<QuejasCiudadanasContext>(options =>
+    options.UseSqlServer(connectionString));
+```
+
+**NuGet Packages Used:**
+- `Microsoft.EntityFrameworkCore.SqlServer` v9.0.4
+- `Microsoft.EntityFrameworkCore.Tools` v9.0.4
+
+## Verify Configuration
+
+To verify your configuration is correct:
+
+<Steps>
+  <Step title="Build the Project">
+    ```bash
+    dotnet build
+    ```
+  </Step>
+
+  <Step title="Run the Application">
+    ```bash
+    dotnet run
+    ```
+  </Step>
+
+  <Step title="Check Logs">
+    Look for successful database connection messages in the console output.
+  </Step>
+</Steps>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection String Not Found">
+    **Error**: `InvalidOperationException: The ConnectionString property has not been initialized.`
+    
+    **Solution**:
+    - Verify `ConnectionStrings:QuejasCiudadanaDb` exists in `appsettings.json`
+    - Check for typos in the connection string name
+    - Ensure the configuration file is in the project root
+  </Accordion>
+
+  <Accordion title="SQL Server Authentication Failed">
+    **Error**: `Login failed for user 'sa'`
+    
+    **Solution**:
+    - Verify SQL Server allows SQL authentication (not just Windows)
+    - Check username and password are correct
+    - Ensure the user has access to the database
+  </Accordion>
+
+  <Accordion title="Certificate Trust Issues">
+    **Error**: `A connection was successfully established... but an error occurred during the login process`
+    
+    **Solution**:
+    Add `TrustServerCertificate=True` to your connection string:
+    ```
+    Server=localhost;Database=quejas_ciudadana;User Id=sa;Password=YourPassword;TrustServerCertificate=True;
+    ```
+  </Accordion>
+
+  <Accordion title="Database Does Not Exist">
+    **Error**: `Cannot open database "quejas_ciudadana" requested by the login`
+    
+    **Solution**:
+    Create the database first. See the [Database Setup](/database-setup) page.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Database Setup" icon="database" href="/database-setup">
+    Set up the database schema and stored procedures
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture">
+    Learn about the application architecture
+  </Card>
+</CardGroup>

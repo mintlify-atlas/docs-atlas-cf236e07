@@ -1,0 +1,266 @@
+---
+title: 'Catalog Models'
+description: 'Reference data models for identification types, problem categories, locations, and system states'
+---
+
+## Overview
+
+Catalog models provide reference data used throughout the application. These models define dropdown options, problem taxonomies, geographic locations, and system states.
+
+## User Catalogs
+
+### TipoIdentificacion
+
+Types of identification documents.
+
+```csharp
+public class TipoIdentificacion
+{
+    [Key]
+    public int Id_identificacion { get; set; }
+    public string Descripcion { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_identificacion` | `int` | Primary key - Unique identifier |
+| `Descripcion` | `string` | Document type name (e.g., "Cédula", "Pasaporte") |
+
+### Sexo
+
+Gender options.
+
+```csharp
+public class Sexo
+{
+    [Key]
+    public int Id_sexo { get; set; }
+    public string Descripcion { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_sexo` | `int` | Primary key - Gender identifier |
+| `Descripcion` | `string` | Gender description |
+
+## Problem Taxonomy
+
+The system uses a three-level hierarchy for categorizing problems:
+
+1. **Problema** (Problem Category) - Top level (e.g., "Infrastructure")
+2. **Clase_Problema** (Problem Class) - Mid level (e.g., "Roads")
+3. **Tipo_Problema** (Problem Type) - Specific type (e.g., "Pothole")
+
+### Problema
+
+Top-level problem categories.
+
+```csharp
+public class Problema
+{
+    [Key]
+    public int Id_Problema { get; set; }
+    public string Nombre { get; set; }
+    public ICollection<Clase_Problema> Clases_Problema { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_Problema` | `int` | Primary key - Problem category ID |
+| `Nombre` | `string` | Category name |
+| `Clases_Problema` | `ICollection<Clase_Problema>` | Navigation property to related problem classes |
+
+### Clase_Problema
+
+Mid-level problem classification.
+
+```csharp
+public class Clase_Problema
+{
+    [Key]
+    public int Id_Clase_Problema { get; set; }
+    public string Nombre { get; set; }
+    public int Id_Problema { get; set; }
+    public Problema Problema { get; set; }
+    public ICollection<Tipo_Problema> Tipos_Problema { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_Clase_Problema` | `int` | Primary key - Problem class ID |
+| `Nombre` | `string` | Class name |
+| `Id_Problema` | `int` | Foreign key to parent Problema |
+| `Problema` | `Problema` | Navigation property to parent problem |
+| `Tipos_Problema` | `ICollection<Tipo_Problema>` | Navigation property to related problem types |
+
+### Tipo_Problema
+
+Specific problem types.
+
+```csharp
+public class Tipo_Problema
+{
+    [Key]
+    public int Id_Tipo_Problema { get; set; }
+    public string Nombre { get; set; }
+    public int Id_Clase_Problema { get; set; }
+    public Clase_Problema Clase_Problema { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_Tipo_Problema` | `int` | Primary key - Problem type ID |
+| `Nombre` | `string` | Type name |
+| `Id_Clase_Problema` | `int` | Foreign key to parent Clase_Problema |
+| `Clase_Problema` | `Clase_Problema` | Navigation property to parent problem class |
+
+## Geographic Catalogs
+
+### CAT001_DEPTOS
+
+Departments (states/provinces).
+
+```csharp
+public class CAT001_DEPTOS
+{
+    [Key]
+    public short A001ID { get; set; }
+    public string A001CODIGO { get; set; }
+    public string A001DESCRIPCION { get; set; }
+    public ICollection<CAT002_CIUDADES> Ciudades { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `A001ID` | `short` | Primary key - Department ID |
+| `A001CODIGO` | `string` | Department code |
+| `A001DESCRIPCION` | `string` | Department name |
+| `Ciudades` | `ICollection<CAT002_CIUDADES>` | Navigation property to cities in this department |
+
+### CAT002_CIUDADES
+
+Cities within departments.
+
+```csharp
+public class CAT002_CIUDADES
+{
+    [Key]
+    public short A002ID { get; set; }
+    public string A002CODDEPTO { get; set; }
+    public string A002CODCIUDAD { get; set; }
+    public string A002DESCRIPCION { get; set; }
+    public string A002CODUBICACION { get; set; }
+    public CAT001_DEPTOS CAT001_DEPTOS { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `A002ID` | `short` | Primary key - City ID |
+| `A002CODDEPTO` | `string` | Foreign key - Department code |
+| `A002CODCIUDAD` | `string` | City code |
+| `A002DESCRIPCION` | `string` | City name |
+| `A002CODUBICACION` | `string` | Location code |
+| `CAT001_DEPTOS` | `CAT001_DEPTOS` | Navigation property to parent department |
+
+## System Status
+
+### Estado_caso
+
+Case status values.
+
+```csharp
+public class Estado_caso
+{
+    [Key]
+    public int Id_estado_caso { get; set; }
+    public string Descripcion { get; set; }
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_estado_caso` | `int` | Primary key - Status ID |
+| `Descripcion` | `string` | Status description (e.g., "Open", "In Progress", "Resolved") |
+
+## Error Handling
+
+### ErrorViewModel
+
+Error view model for displaying error pages.
+
+```csharp
+public class ErrorViewModel
+{
+    public string? RequestId { get; set; }
+    public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+}
+```
+
+#### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `RequestId` | `string?` | Request identifier for error tracking |
+| `ShowRequestId` | `bool` | Computed property - true if RequestId has a value |
+
+## Relationships Overview
+
+### Problem Hierarchy
+
+```
+Problema (Infrastructure)
+└── Clase_Problema (Roads)
+    └── Tipo_Problema (Pothole)
+    └── Tipo_Problema (Damaged Sidewalk)
+└── Clase_Problema (Public Buildings)
+    └── Tipo_Problema (Damaged Roof)
+```
+
+### Geographic Hierarchy
+
+```
+CAT001_DEPTOS (Department)
+└── CAT002_CIUDADES (City 1)
+└── CAT002_CIUDADES (City 2)
+└── CAT002_CIUDADES (City 3)
+```
+
+## Usage in Forms
+
+Catalog models are typically used to populate dropdown lists:
+
+- User registration forms use `TipoIdentificacion` and `Sexo`
+- Report creation forms use the problem taxonomy (`Problema` → `Clase_Problema` → `Tipo_Problema`)
+- Location selectors use `CAT001_DEPTOS` and `CAT002_CIUDADES`
+- Status filters use `Estado_caso`
+
+## Database Relationships
+
+All catalog models use Entity Framework navigation properties to establish relationships:
+
+- Parent-child relationships (one-to-many)
+- Foreign key constraints
+- Lazy loading support through `ICollection<T>` properties

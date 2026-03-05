@@ -1,0 +1,538 @@
+---
+title: "Quick Start Guide"
+description: "Get up and running with Quejas Ciudadanas in minutes - from installation to creating your first report"
+---
+
+## Prerequisites
+
+Before you begin, ensure you have the following installed:
+
+<CardGroup cols={3}>
+  <Card title=".NET 8.0 SDK" icon="microsoft">
+    Required for running the ASP.NET Core application
+  </Card>
+  <Card title="SQL Server" icon="database">
+    SQL Server 2019+ or SQL Server Express
+  </Card>
+  <Card title="Visual Studio" icon="code">
+    Visual Studio 2022 or VS Code with C# extension
+  </Card>
+</CardGroup>
+
+---
+
+## Installation
+
+<Steps>
+  <Step title="Clone the Repository">
+    Download the Quejas Ciudadanas source code to your local machine:
+    
+    ```bash
+    git clone https://github.com/your-org/quejas_ciudadanas.git
+    cd quejas_ciudadanas
+    ```
+  </Step>
+
+  <Step title="Configure Database Connection">
+    Open `appsettings.json` and update the connection string:
+    
+    ```json appsettings.json
+    {
+      "ConnectionStrings": {
+        "QuejasCiudadanaDb": "Server=localhost;Database=QuejasCiudadanas;Trusted_Connection=True;TrustServerCertificate=True;"
+      }
+    }
+    ```
+    
+    <Info>
+      Replace `localhost` with your SQL Server instance name. For SQL Server Express, use `localhost\\SQLEXPRESS`.
+    </Info>
+  </Step>
+
+  <Step title="Restore Dependencies">
+    Install required NuGet packages:
+    
+    ```bash
+    dotnet restore
+    ```
+    
+    This installs:
+    - Microsoft.EntityFrameworkCore.SqlServer (v9.0.4)
+    - Microsoft.EntityFrameworkCore.Tools (v9.0.4)
+  </Step>
+
+  <Step title="Create Database">
+    Run the database migration scripts to create tables and stored procedures:
+    
+    ```bash
+    dotnet ef database update
+    ```
+    
+    <Warning>
+      Ensure your SQL Server instance is running before executing this command.
+    </Warning>
+  </Step>
+
+  <Step title="Seed Catalog Data">
+    Populate the system with initial data:
+    - Department and city catalogs (CAT001_DEPTOS, CAT002_CIUDADES)
+    - Problem categories (Problema, Clase_Problema, Tipo_Problema)
+    - Case status options (Estado_caso)
+    
+    Run your seed scripts or SQL imports to populate these tables.
+  </Step>
+
+  <Step title="Run the Application">
+    Start the development server:
+    
+    ```bash
+    dotnet run
+    ```
+    
+    The application will start at `https://localhost:5001` (or the port specified in your launch settings).
+  </Step>
+</Steps>
+
+---
+
+## First-Time Setup
+
+### Create Your User Account
+
+<Steps>
+  <Step title="Navigate to Registration">
+    Open your browser and go to `https://localhost:5001`
+    
+    Click the **"Crear nueva cuenta"** (Create new account) button on the login page.
+  </Step>
+
+  <Step title="Fill Registration Form">
+    Provide the following information:
+    
+    - **Tipo de Identificación**: Choose ID type (e.g., Cédula, Pasaporte)
+    - **Número de Identificación**: Your ID number
+    - **Nombre Completo**: Your full name
+    - **Sexo**: Select gender
+    - **Correo Electrónico**: Email address (used for login)
+    - **Contraseña**: Strong password (min 8 characters)
+    - **Confirmar Contraseña**: Re-enter password
+  </Step>
+
+  <Step title="Complete Registration">
+    Click **"Registrar"** to create your account.
+    
+    <Info>
+      Your account is created immediately. You can log in right away using your email and password.
+    </Info>
+  </Step>
+</Steps>
+
+---
+
+## Creating Your First Report
+
+Follow these steps to submit your first citizen complaint:
+
+<Steps>
+  <Step title="Log In">
+    Use your email and password to access the system.
+    
+    ```csharp HomeController.cs:inicio_secion
+    public async Task<IActionResult> inicio_secion([FromForm] Inicio_secion model)
+    {
+        inicio_secion_recibida recibe = await _context.InicioSesionAsync(model);
+        if (recibe != null)
+        {
+            HttpContext.Session.SetInt32("Id_user", recibe.Id_usuario);
+            return new RedirectToActionResult("Index", "Reportes", null);
+        }
+        return View("Index");
+    }
+    ```
+    
+    After successful login, you'll be redirected to the Reports dashboard.
+  </Step>
+
+  <Step title="Navigate to Create Report">
+    Click **"Crear reporte"** (Create report) from the navigation menu.
+    
+    You'll see an interactive map centered on Bogotá, Colombia (coordinates: 4.60971, -74.08175).
+  </Step>
+
+  <Step title="Set Location">
+    Choose one of two methods to set the problem location:
+    
+    **Option A: Click on Map**
+    - Click anywhere on the map to place a marker
+    - The system automatically generates:
+      - Latitude and longitude coordinates
+      - Geohash for spatial indexing
+      - Address via reverse geocoding
+    
+    **Option B: Use Your Location**
+    - Click the **"📍 Usar mi ubicación"** button
+    - Allow browser location access when prompted
+    - Map centers on your current position
+    
+    ```javascript crear_reportes.js:48-56
+    function ubicarme() {
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(pos => {
+                const lat = pos.coords.latitude, lon = pos.coords.longitude;
+                map.setView([lat, lon], 15);
+                setMarker(lat, lon);
+            });
+        }
+    }
+    ```
+  </Step>
+
+  <Step title="Categorize the Problem">
+    Fill in the cascading dropdowns:
+    
+    1. **Problemática**: Select top-level category (e.g., "Infraestructura")
+    2. **Clase de problemática**: Select sub-category (e.g., "Vías")
+    3. **Tipo de problema**: Select specific issue (e.g., "Bache")
+    
+    <Note>
+      Each dropdown dynamically loads options based on the previous selection via AJAX calls.
+    </Note>
+    
+    ```javascript crear_reportes.js:74-91
+    $('#problemaSelect').on('change', function () {
+        var idProblema = $(this).val();
+        if (idProblema) {
+            $.getJSON('/Reportes/GetClasesProblema/' + idProblema, function (data) {
+                $('#claseProblemaSelect').empty();
+                $.each(data, function (i, item) {
+                    $('#claseProblemaSelect').append($('<option>', {
+                        value: item.id_Clase_Problema,
+                        text: item.nombre
+                    }));
+                });
+            });
+        }
+    });
+    ```
+  </Step>
+
+  <Step title="Select Location Details">
+    Choose the administrative location:
+    
+    1. **Departamento**: Select department (state/province)
+    2. **Ciudad**: Select city (loads dynamically based on department)
+    
+    The address field is auto-populated from reverse geocoding but can be edited manually.
+  </Step>
+
+  <Step title="Describe the Issue">
+    Enter a detailed description of the problem in the **"Descripción del problema"** field.
+    
+    <Warning>
+      Maximum 250 characters. Be clear and concise.
+    </Warning>
+  </Step>
+
+  <Step title="Upload Photos">
+    Click each of the 6 photo boxes to upload evidence images:
+    
+    - All 6 photos are **required**
+    - Accepted formats: JPG, JPEG, PNG
+    - Photos are previewed immediately after selection
+    
+    ```javascript crear_reportes.js:147-153
+    for (let i = 0; i < 6; i++) {
+        const fileInput = $("#file" + i)[0];
+        if (!fileInput || fileInput.files.length === 0) {
+            mostrarModal(`Debe cargar las 6 imagenes. La imagen ${i + 1} no ha sido seleccionada.`);
+            return;
+        }
+    }
+    ```
+    
+    <Tip>
+      Take photos from multiple angles to provide comprehensive visual evidence of the issue.
+    </Tip>
+  </Step>
+
+  <Step title="Submit Report">
+    Click **"Crear reporte"** to submit your report.
+    
+    The system will:
+    1. Validate all required fields
+    2. Upload photos to server storage
+    3. Create database records
+    4. Group with similar reports (if any)
+    5. Display success confirmation
+    
+    ```javascript crear_reportes.js:171-188
+    $.ajax({
+        url: '/Reportes/GuardarReporte',
+        type: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function (res) {
+            mostrarModal("Reporte enviado exitosamente.");
+            ocultarPreloader();
+        },
+        error: function (err) {
+            mostrarModal("Error al enviar el reporte.");
+            ocultarPreloader();
+        }
+    });
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Viewing Reports and Cases
+
+### Access the Search Interface
+
+<Steps>
+  <Step title="Open Report Search">
+    Navigate to **"Ver reportes"** (View reports) from the main menu.
+    
+    You'll see:
+    - Filter controls at the top
+    - Data table with paginated results
+    - Interactive map showing case locations
+  </Step>
+
+  <Step title="Apply Filters">
+    Use any combination of filters:
+    
+    <CardGroup cols={3}>
+      <Card title="Category Filters" icon="filter">
+        Problema, Clase, Tipo
+      </Card>
+      <Card title="Location Filters" icon="map-pin">
+        Departamento, Ciudad
+      </Card>
+      <Card title="Status Filter" icon="toggle-on">
+        Pending / In Progress / Completed
+      </Card>
+    </CardGroup>
+    
+    Click the **search icon** to apply filters.
+  </Step>
+
+  <Step title="View Results">
+    The table displays grouped cases with:
+    - Problem categorization
+    - Location details
+    - Registration date
+    - Status badge (color-coded)
+    - Number of reports in the case
+    - Action buttons: **Locate** (map) and **View** (details)
+    
+    ```javascript buscar_reportes.js:154-168
+    cuerpo.innerHTML += `
+      <tr>
+        <td>${item.problema}</td>
+        <td>${item.clase}</td>
+        <td>${item.tipo}</td>
+        <td>${item.departamento}</td>
+        <td>${item.ciudad}</td>
+        <td>${item.fecha}</td>
+        <td>${estadoTextos[item.estado]}</td>
+        <td>${item.cantidad}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="centrarEnMapa(${item.id})">📍</button></td>
+        <td><button class="btn btn-sm btn-warning" onclick="mostrarAlerta(${item.id},0)">▶</button></td>
+      </tr>`;
+    ```
+  </Step>
+
+  <Step title="View on Map">
+    Click the **location button** (📍) to:
+    - Center the map on the case location
+    - Highlight the marker
+    - Display case information tooltip
+    
+    Markers are color-coded by status:
+    - <span style={{color: '#003366', fontWeight: 'bold'}}>Blue</span> - Pending
+    - <span style={{color: '#FFD700', fontWeight: 'bold'}}>Yellow</span> - In Progress
+    - <span style={{color: '#FF0000', fontWeight: 'bold'}}>Red</span> - Completed
+  </Step>
+
+  <Step title="View Case Details">
+    Click the **view button** (▶) to see:
+    - Complete case information
+    - Photo carousel with all evidence images
+    - List of related reports in the case
+    - Agent responses (if any)
+    - Option to respond (for agents)
+  </Step>
+</Steps>
+
+---
+
+## Agent Response Workflow
+
+<Info>
+  This section is for government agents who respond to and manage citizen complaints.
+</Info>
+
+<Steps>
+  <Step title="Select a Case">
+    From the search results, click **View** on any case you want to respond to.
+    
+    Review all details including:
+    - Reporter information
+    - Problem description
+    - Evidence photos
+    - Related reports
+  </Step>
+
+  <Step title="Open Response Form">
+    Click the **"Responder caso"** (Respond to case) button at the bottom.
+    
+    A modal dialog opens with the response form.
+  </Step>
+
+  <Step title="Update Case Status">
+    Select the new status from the dropdown:
+    - **En proceso** (In Progress) - Case is being worked on
+    - **Finalizado** (Completed) - Issue has been resolved
+    
+    <Note>
+      Cases start with "Pendiente" (Pending) status automatically.
+    </Note>
+  </Step>
+
+  <Step title="Add Response Details">
+    Enter your response in the **Comentario** field (max 250 characters).
+    
+    Include details about:
+    - Actions taken
+    - Resolution timeline
+    - Additional information for the citizen
+  </Step>
+
+  <Step title="Attach Evidence (Optional)">
+    Add supporting documentation:
+    
+    **Photos**: Up to 3 images (JPG, JPEG, PNG)
+    ```javascript
+    <input type="file" id="fotos" name="fotos" accept="image/*" multiple 
+           onchange="if(this.files.length > 3){ alert('Máximo 3 imágenes'); this.value=''; }">
+    ```
+    
+    **PDF**: One PDF document
+    ```javascript
+    <input type="file" id="archivoPdf" name="archivoPdf" accept="application/pdf">
+    ```
+  </Step>
+
+  <Step title="Submit Response">
+    Click **"Enviar"** to save your response.
+    
+    The system stores files in:
+    ```
+    /evidencias_respuesta_caso/{case_id}/{response_id}/
+      ├── adjunto_foto/
+      │   ├── foto_1.jpg
+      │   ├── foto_2.jpg
+      │   └── foto_3.jpg
+      └── adjunto_pdf/
+          └── pdf_1.pdf
+    ```
+    
+    <Tip>
+      All responses are timestamped and linked to your user account for audit purposes.
+    </Tip>
+  </Step>
+</Steps>
+
+---
+
+## Common Issues & Solutions
+
+<AccordionGroup>
+  <Accordion title="Map not loading or showing blank tiles">
+    **Cause**: Network connectivity to OpenStreetMap tile servers
+    
+    **Solution**:
+    1. Check your internet connection
+    2. Ensure your firewall allows connections to `tile.openstreetmap.org`
+    3. Try clearing browser cache
+    4. Check browser console for specific error messages
+  </Accordion>
+
+  <Accordion title="Location button says 'Tu navegador no soporta geolocalización'">
+    **Cause**: Browser doesn't support Geolocation API or permission denied
+    
+    **Solution**:
+    1. Use a modern browser (Chrome, Firefox, Edge, Safari)
+    2. Ensure you're accessing via HTTPS (required for geolocation)
+    3. Check browser location permissions
+    4. Reset site permissions if previously denied
+  </Accordion>
+
+  <Accordion title="Dropdowns not loading (Clase, Tipo, Ciudad)">
+    **Cause**: AJAX request failures or missing catalog data
+    
+    **Solution**:
+    1. Check browser console for JavaScript errors
+    2. Verify database has catalog data populated
+    3. Ensure server is running and accessible
+    4. Check SQL Server connection string in `appsettings.json`
+  </Accordion>
+
+  <Accordion title="Session expired - logged out automatically">
+    **Cause**: 30-minute session timeout reached
+    
+    **Solution**:
+    - Log in again to continue working
+    - Sessions automatically expire for security
+    - This is configurable in `Program.cs:16`
+    
+    ```csharp
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    ```
+  </Accordion>
+
+  <Accordion title="Photo upload fails or shows error">
+    **Cause**: File too large, wrong format, or server storage issue
+    
+    **Solution**:
+    1. Ensure photos are JPG, JPEG, or PNG format
+    2. Compress large images before upload
+    3. Check server has write permissions to `/wwwroot/evidencias/`
+    4. Verify disk space on server
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Explore Features" icon="compass" href="/features">
+    Learn about all platform capabilities in detail
+  </Card>
+  <Card title="User Guide" icon="book-open" href="/user-guide/citizen-portal">
+    Complete walkthrough of citizen and agent workflows
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the technical architecture and design
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/reportes-controller">
+    Explore all available endpoints and methods
+  </Card>
+</CardGroup>
+
+---
+
+## Getting Help
+
+<Card title="Need Assistance?" icon="life-ring">
+  If you encounter issues not covered in this guide:
+  
+  1. Review the **[Installation Guide](/installation)** for setup issues
+  2. Check the **[Configuration Guide](/configuration)** for connection problems
+  3. Contact your system administrator
+  4. Open an issue in the project repository
+</Card>

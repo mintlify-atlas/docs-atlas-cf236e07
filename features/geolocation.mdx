@@ -1,0 +1,216 @@
+---
+title: Geolocation and Mapping
+description: Location tracking with geohash clustering for efficient case management
+---
+
+Quejas Ciudadanas uses advanced geolocation technology to accurately pinpoint and cluster citizen reports based on their geographic location.
+
+## Geolocation System
+
+The platform integrates multiple location technologies to provide accurate and user-friendly location selection:
+
+- **Leaflet Maps**: Interactive map interface for visual location selection
+- **OpenStreetMap**: Free and open-source map tiles
+- **Geohash Encoding**: Hierarchical spatial data structure for clustering
+- **Reverse Geocoding**: Automatic address lookup from coordinates
+
+## How Location Selection Works
+
+<Steps>
+  <Step title="User accesses the map">
+    When creating a report, users see an interactive map centered on Bogotá, Colombia (default coordinates: 4.60971, -74.08175).
+  </Step>
+  
+  <Step title="Select location">
+    Users can select a location by:
+    - Clicking anywhere on the map
+    - Using the "Ubicarme" (Locate Me) button for GPS positioning
+  </Step>
+  
+  <Step title="System captures coordinates">
+    The system captures three key pieces of data:
+    - **Latitude**: Precise north-south position
+    - **Longitude**: Precise east-west position
+    - **Geohash**: Encoded location string for clustering
+  </Step>
+  
+  <Step title="Address lookup">
+    The system automatically queries Nominatim (OpenStreetMap's geocoding service) to retrieve the human-readable address.
+  </Step>
+</Steps>
+
+## Geohash Implementation
+
+Geohash is a geocoding system that encodes geographic coordinates into a short string of letters and numbers. The system uses **9-character precision** for optimal clustering.
+
+### Geohash Encoding Algorithm
+
+```javascript
+const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
+
+function encodeGeohash(latitude, longitude, precision = 9) {
+    let isEven = true, bit = 0, ch = 0, geohash = "";
+    let lat = [-90.0, 90.0], lon = [-180.0, 180.0];
+    
+    while (geohash.length < precision) {
+        const mid = isEven ? (lon[0] + lon[1]) / 2 : (lat[0] + lat[1]) / 2;
+        if ((isEven ? longitude : latitude) > mid) {
+            ch |= 1 << (4 - bit);
+            isEven ? lon[0] = mid : lat[0] = mid;
+        } else {
+            isEven ? lon[1] = mid : lat[1] = mid;
+        }
+        isEven = !isEven;
+        if (++bit === 5) {
+            geohash += BASE32[ch];
+            bit = 0;
+            ch = 0;
+        }
+    }
+    return geohash;
+}
+```
+
+<Info>
+Geohash precision of 9 characters provides approximately ±2.4 meter accuracy, perfect for identifying the same location across multiple reports.
+</Info>
+
+### Why Geohash?
+
+Geohash provides several advantages for case management:
+
+1. **Automatic Clustering**: Reports with similar geohashes are automatically near each other
+2. **Hierarchical Grouping**: Truncating the geohash creates progressively larger geographic areas
+3. **Database Efficiency**: Easy to index and query for proximity searches
+4. **Human Readable**: The encoded string can be shared and decoded
+
+## Map Interaction
+
+The Leaflet map is initialized with these settings:
+
+```javascript
+const map = L.map('map').setView([4.60971, -74.08175], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+```
+
+### Click to Select Location
+
+Users can click anywhere on the map to place a marker:
+
+```javascript
+map.on('click', e => setMarker(e.latlng.lat, e.latlng.lng));
+```
+
+### GPS-Based Location
+
+The "Ubicarme" button uses the browser's Geolocation API:
+
+```javascript
+function ubicarme() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude, lon = pos.coords.longitude;
+            map.setView([lat, lon], 15);
+            setMarker(lat, lon);
+        });
+    } else {
+        alert("Tu navegador no soporta geolocalización");
+    }
+}
+```
+
+<Tip>
+The GPS positioning automatically zooms to level 15 for a detailed view of the selected area.
+</Tip>
+
+## Reverse Geocoding
+
+When a location is selected, the system performs reverse geocoding to convert coordinates into an address:
+
+```javascript
+function updateData(lat, lon) {
+    document.getElementById("lat").textContent = lat.toFixed(6);
+    document.getElementById("lon").textContent = lon.toFixed(6);
+    document.getElementById("geohash").textContent = encodeGeohash(lat, lon);
+    
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+        .then(res => res.json())
+        .then(data => {
+            const direccion = data.display_name || "-";
+            document.getElementById("direccionInput").value = direccion;
+        });
+}
+```
+
+<Note>
+The address field is automatically populated but can be manually edited by the user if needed.
+</Note>
+
+## Location Data Storage
+
+When a report is submitted, the location data is stored in the database:
+
+```csharp
+public class Reporte_nuevo
+{
+    public string Latitud { get; set; }      // Example: "4.609710"
+    public string Longitud { get; set; }     // Example: "-74.081750"
+    public string Geohash { get; set; }      // Example: "d29g0r8nv"
+    public string Ciudad { get; set; }       // City code
+    public string Direccion { get; set; }    // Full address string
+}
+```
+
+## Case Grouping by Geohash
+
+Reports with identical or very similar geohashes are automatically grouped into cases. The database uses the geohash to:
+
+1. Identify duplicate or nearby reports
+2. Create cases that group related reports
+3. Calculate the number of reports per case
+4. Display cluster markers on the search map
+
+<Info>
+See the [Case Grouping](/features/case-grouping) page for details on how reports are automatically clustered into cases.
+</Info>
+
+## Search Map Visualization
+
+On the report search page, cases are displayed with cluster markers showing:
+
+- **Location**: Precise lat/lon of the case
+- **Count**: Number of reports in the case
+- **Status Color**: Visual indicator of case status
+  - Blue (#003366): Pending
+  - Yellow (#FFD700): In Progress
+  - Red (#FF0000): Completed
+
+```javascript
+const estadoColores = { 1: "#003366", 2: "#FFD700", 3: "#FF0000" };
+
+function crearMarcador(item) {
+    const icon = L.divIcon({
+        html: `<div style="background:${estadoColores[item.estado]};color:white;padding:4px 6px;border-radius:15px;border:2px solid #fff;font-size:12px;box-shadow:0 0 3px rgba(0,0,0,0.5);transform:translate(-50%,-50%)">${item.cantidad}</div>`,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+    });
+    const marker = L.marker([item.lat, item.lon], { icon }).addTo(map);
+}
+```
+
+## Location Hierarchy
+
+Locations are organized hierarchically:
+
+1. **Department** (Departamento): Top-level administrative division
+2. **City** (Ciudad): Municipality within the department
+3. **Address** (Dirección): Specific street address
+4. **Coordinates**: Exact latitude and longitude
+5. **Geohash**: Encoded location for clustering
+
+<Tip>
+Users select department and city from dropdown menus, ensuring consistent geographic categorization across all reports.
+</Tip>

@@ -1,0 +1,476 @@
+---
+title: File Upload System
+description: Photo and PDF attachment handling for reports and responses
+---
+
+Quejas Ciudadanas has a robust file upload system that handles both photo evidence from citizens and response attachments from government agents.
+
+## Citizen Report Uploads
+
+### Photo Requirements
+
+When creating a report, citizens must upload **exactly 6 photos**:
+
+- **Required Count**: All 6 slots must be filled
+- **Supported Formats**: JPG, JPEG, PNG
+- **Purpose**: Comprehensive visual documentation of infrastructure issues
+
+<Info>
+The 6-photo requirement ensures thorough documentation from multiple angles, helping government agents understand the full scope of each problem.
+</Info>
+
+### Upload Interface
+
+The upload interface provides:
+
+1. **6 upload slots** with preview capability
+2. **Visual feedback** as each photo is selected
+3. **Image preview** before submission
+
+### Image Preview Implementation
+
+As users select photos, they see an instant preview:
+
+```javascript
+function previewImage(event, index) {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById(`preview${index}`).src = e.target.result;
+            document.getElementById(`preview${index}`).style.display = "block";
+            document.getElementById(`icon${index}`).style.display = "none";
+        };
+        reader.readAsDataURL(file);
+    }
+}
+```
+
+This provides immediate visual confirmation that the correct photo was selected.
+
+### Validation Before Submission
+
+Before the form is submitted, the system validates all photos:
+
+```javascript
+// Validate all 6 images are present
+for (let i = 0; i < 6; i++) {
+    const fileInput = $("#file" + i)[0];
+    if (!fileInput || fileInput.files.length === 0) {
+        mostrarModal(`Debe cargar las 6 imagenes. La imagen ${i + 1} no ha sido seleccionada.`);
+        return;
+    }
+}
+
+// Build FormData with all images
+for (let i = 0; i < 6; i++) {
+    const file = $("#file" + i)[0].files[0];
+    formData.append("Imagen" + i, file);
+}
+```
+
+<Note>
+The system will not allow submission until all 6 photo slots are filled.
+</Note>
+
+## Server-Side Photo Processing
+
+### Validation and Storage
+
+The server validates and processes each photo:
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> GuardarReporte([FromForm]Reporte_nuevo model)
+{
+    // Get authenticated user
+    var session = HttpContext.Session;
+    var idUsuario = session.GetInt32("Id_user");
+    model.Id_user = (int)idUsuario;
+    model.id_estado = 1;
+    
+    // Save report metadata to database
+    respuesta_repote_registrado nuevo_reporte = await _context.GuardarReporteCiudadanoAsync(model);
+    
+    if (nuevo_reporte != null)
+    {
+        // Validate 6 files were received
+        var archivos = new List<IFormFile>();
+        for (int i = 0; i < 6; i++)
+        {
+            var archivo = Request.Form.Files["Imagen" + i];
+            if (archivo == null || archivo.Length == 0)
+                return BadRequest($"Imagen {i + 1} no fue cargada.");
+            archivos.Add(archivo);
+        }
+        
+        // Create unique folder for this report
+        var idReporte = nuevo_reporte.Id_caso + "_" + nuevo_reporte.Id_reporte + "_" + 
+                        nuevo_reporte.Id_user_ciudadano + "_" + nuevo_reporte.llave;
+        string carpeta = Path.Combine("wwwroot/evidencias", idReporte.ToString());
+        Directory.CreateDirectory(carpeta);
+        
+        // Save each photo
+        for (int i = 0; i < archivos.Count; i++)
+        {
+            var nombreArchivo = $"evidencia_{i + 1}{Path.GetExtension(archivos[i].FileName)}";
+            var rutaCompleta = Path.Combine(carpeta, nombreArchivo);
+            
+            using (var stream = new FileStream(rutaCompleta, FileMode.Create))
+            {
+                await archivos[i].CopyToAsync(stream);
+            }
+            
+            // Save photo metadata to database
+            var rutaRelativa = $"/evidencias/{idReporte}/{nombreArchivo}";
+            Reporte_nuevo_fotos respuesta = new Reporte_nuevo_fotos
+            {
+                Id_reporte = nuevo_reporte.Id_reporte,
+                Nombre_imagen = nombreArchivo,
+                Ruta_foto = rutaRelativa
+            };
+            await _context.GuardarReporteFotosAsync(respuesta);
+        }
+        
+        return Ok(new { mensaje = "Reporte enviado correctamente" });
+    }
+    
+    return BadRequest("Error al guardar el reporte.");
+}
+```
+
+### File Organization Structure
+
+Citizen report photos are stored in a hierarchical structure:
+
+```
+wwwroot/
+  evidencias/
+    {Id_caso}_{Id_reporte}_{Id_user}_{llave}/
+      evidencia_1.jpg
+      evidencia_2.jpg
+      evidencia_3.jpg
+      evidencia_4.jpg
+      evidencia_5.jpg
+      evidencia_6.jpg
+```
+
+Each folder is uniquely identified by:
+- **Id_caso**: The case ID this report belongs to
+- **Id_reporte**: The unique report ID
+- **Id_user**: The citizen who created the report
+- **llave**: A unique key for additional security
+
+<Tip>
+This naming scheme ensures that even if multiple reports have the same case ID, their photos are stored in separate folders.
+</Tip>
+
+## Government Agent Response Uploads
+
+Government agents can attach files when responding to cases:
+
+### Agent Upload Options
+
+1. **Photos**: Up to 3 images (JPG, JPEG, PNG)
+2. **PDF Document**: 1 PDF file for official documentation
+
+<Info>
+Unlike citizen reports which require exactly 6 photos, agent responses allow 0-3 photos and an optional PDF.
+</Info>
+
+### Response Form Validation
+
+```javascript
+// Validate up to 3 images
+const fotos = document.getElementById('fotos').files;
+if (fotos.length > 3) {
+    alert("Solo puedes subir hasta 3 imágenes.");
+    return;
+}
+
+// Validate image formats
+for (let i = 0; i < fotos.length; i++) {
+    const extension = fotos[i].type.split('/')[1].toLowerCase();
+    if (!['jpeg', 'jpg', 'png'].includes(extension)) {
+        alert("Solo se permiten imágenes con los formatos .jpg, .jpeg, .png.");
+        return;
+    }
+}
+
+// Validate PDF format
+const archivoPdf = document.getElementById('archivoPdf').files[0];
+if (archivoPdf && archivoPdf.type !== "application/pdf") {
+    alert("Solo se permite un archivo PDF.");
+    return;
+}
+```
+
+### Server-Side Response Processing
+
+Agent responses are processed with separate storage for photos and PDFs:
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> Enviar_Respuest_caso([FromForm] FormularioModel_respuesta_caso modelo)
+{
+    try
+    {
+        // Save response metadata to database
+        respuesta_repote_registrado_agente nuevo_reporte = await _context.AnsycRegistrar_respuesta_agente(modelo);
+        
+        if (nuevo_reporte == null)
+        {
+            return BadRequest(new { mensaje = "No se pudo guardar la respuesta, intente nuevamente." });
+        }
+        
+        var rutasArchivos = new List<string>();
+        var idRespuestaAgente = nuevo_reporte.id_respuesta_agente;
+        
+        // Base path for this response
+        var basePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "evidencias_respuesta_caso", 
+                                     modelo.id_caso.ToString(), idRespuestaAgente.ToString());
+        
+        if (!Directory.Exists(basePath))
+        {
+            Directory.CreateDirectory(basePath);
+        }
+        
+        // Process photos if provided
+        if (modelo.fotos.Any())
+        {
+            var fotosPath = Path.Combine(basePath, "adjunto_foto");
+            if (!Directory.Exists(fotosPath))
+            {
+                Directory.CreateDirectory(fotosPath);
+            }
+            
+            int index = 1;
+            foreach (var foto in modelo.fotos)
+            {
+                if (foto.Length > 0)
+                {
+                    var extension = Path.GetExtension(foto.FileName).ToLower();
+                    var fileName = $"foto_{index}{extension}";
+                    var fullPath = Path.Combine(fotosPath, fileName);
+                    
+                    // Validate image type
+                    if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+                    {
+                        return BadRequest(new { mensaje = "Solo se permiten imágenes .jpg, .jpeg y .png." });
+                    }
+                    
+                    using var stream = new FileStream(fullPath, FileMode.Create);
+                    await foto.CopyToAsync(stream);
+                    
+                    rutasArchivos.Add($"/evidencias_respuesta_caso/{modelo.id_caso}/{idRespuestaAgente}/adjunto_foto/{fileName}");
+                    
+                    // Save to database
+                    var fotoModel = new Reporte_nuevo_fotos_adjente
+                    {
+                        Id_resp_agente = idRespuestaAgente,
+                        Nombre_imagen = fileName,
+                        Ruta_foto = rutasArchivos.Last()
+                    };
+                    
+                    await _context.GuardarReporteFotos_adjenteAsync(fotoModel);
+                    index++;
+                }
+            }
+        }
+        
+        // Process PDF if provided
+        if (modelo.archivoPdf != null && modelo.archivoPdf.Length > 0)
+        {
+            var pdfExtension = Path.GetExtension(modelo.archivoPdf.FileName).ToLower();
+            if (pdfExtension != ".pdf")
+            {
+                return BadRequest(new { mensaje = "El archivo debe ser un PDF." });
+            }
+            
+            var pdfPath = Path.Combine(basePath, "adjunto_pdf");
+            if (!Directory.Exists(pdfPath))
+            {
+                Directory.CreateDirectory(pdfPath);
+            }
+            
+            var fileName = "pdf_1.pdf";
+            var fullPath = Path.Combine(pdfPath, fileName);
+            
+            using var stream = new FileStream(fullPath, FileMode.Create);
+            await modelo.archivoPdf.CopyToAsync(stream);
+            
+            rutasArchivos.Add($"/evidencias_respuesta_caso/{modelo.id_caso}/{idRespuestaAgente}/adjunto_pdf/{fileName}");
+            
+            // Save to database
+            var adjuntoModel = new Reporte_nuevo_adjunto_adjente
+            {
+                Id_resp_agente = idRespuestaAgente,
+                Nombre_imagen = fileName,
+                Ruta_foto = rutasArchivos.Last()
+            };
+            
+            await _context.GuardarReporteadjunto_adjenteAsync(adjuntoModel);
+        }
+        
+        return Json(new { mensaje = "Formulario enviado correctamente." });
+    }
+    catch (Exception ex)
+    {
+        return StatusCode(500, new { mensaje = "Hubo un error al procesar la solicitud.", error = ex.Message });
+    }
+}
+```
+
+### Agent Response File Structure
+
+```
+wwwroot/
+  evidencias_respuesta_caso/
+    {id_caso}/
+      {id_respuesta_agente}/
+        adjunto_foto/
+          foto_1.jpg
+          foto_2.png
+          foto_3.jpg
+        adjunto_pdf/
+          pdf_1.pdf
+```
+
+This structure separates:
+- **Photos** in the `adjunto_foto` subfolder
+- **PDF documents** in the `adjunto_pdf` subfolder
+
+<Note>
+Each response gets its own folder identified by the response ID, allowing multiple responses to the same case.
+</Note>
+
+## File Display and Retrieval
+
+### Photo Carousel for Reports
+
+Citizen report photos are displayed in a Bootstrap carousel:
+
+```javascript
+function generarCarrusel(imagenes) {
+    const carouselInner = document.querySelector('.carousel-inner');
+    carouselInner.innerHTML = '';
+    
+    imagenes.forEach((imagen, index) => {
+        const carouselItem = document.createElement('div');
+        carouselItem.className = `carousel-item ${index === 0 ? 'active' : ''}`;
+        
+        carouselItem.innerHTML = `
+            <img src="${imagen.id_reporte}" class="d-block w-100" alt="Imagen ${index + 1}">
+        `;
+        
+        carouselInner.appendChild(carouselItem);
+    });
+}
+```
+
+### Agent Response Display
+
+Agent responses show photos in a gallery and provide a download link for PDFs:
+
+```javascript
+function generarListaDocumentos(documentos, containerId = 'documentosContainer') {
+    documentos.forEach(doc => {
+        // Display images if present
+        if (doc.imagenes && doc.imagenes.length > 0) {
+            const galeriaImagenes = document.createElement('div');
+            galeriaImagenes.className = 'galeria-imagenes';
+            
+            doc.imagenes.forEach(img => {
+                const imagen = document.createElement('img');
+                imagen.src = img.url || '';
+                imagen.alt = img.alt || 'Imagen';
+                imagen.className = 'imagen-contenido';
+                galeriaImagenes.appendChild(imagen);
+            });
+        }
+        
+        // Display PDF download button if present
+        if (doc.pdfUrl && doc.pdfUrl.trim() !== '') {
+            const botonDescargar = document.createElement('a');
+            botonDescargar.href = doc.pdfUrl;
+            botonDescargar.target = '_blank';
+            botonDescargar.innerHTML = `
+                <i class="bi bi-file-earmark-pdf icono-descargar"></i>
+                Descargar PDF
+            `;
+        }
+    });
+}
+```
+
+## File Retrieval from Database
+
+Photo paths are stored in the database and retrieved when displaying reports:
+
+```csharp
+// Get photos for a specific report
+public async Task<List<ReporteInfraestructura_fotos>> ObtenerCasosreportes_fotos_Async(Consultar_reportes_caso_fotos model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@IdReporte", model.IdReporte),
+    };
+    
+    var result = await ReporteInfraestructura_fotos
+        .FromSqlRaw("EXEC Sp_obtener_fotos_reporte @IdReporte", parametros)
+        .ToListAsync();
+    
+    return result;
+}
+
+// Get agent response photos
+public async Task<List<ReporteInfraestructura_fotos_agente>> ObtenerRespuestas_agente_fotos_Async(Respuestas_agente_fotos model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@IdRespAgente", model.IdRespAgente),
+    };
+    
+    var result = await respuesta_agente_fotos
+        .FromSqlRaw("EXEC Sp_obtener_fotos_agente @IdRespAgente", parametros)
+        .ToListAsync();
+    
+    return result;
+}
+
+// Get agent response PDFs
+public async Task<List<ReporteInfraestructura_fotos_adjuntos>> ObtenerRespuestas_agente_adjunto_Async(Respuestas_agente_adjuntos model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@IdRespAgente", model.IdRespAgente),
+    };
+    
+    var result = await respuesta_agente_adjunto
+        .FromSqlRaw("EXEC Sp_obtener_adjuntos_agente @IdRespAgente", parametros)
+        .ToListAsync();
+    
+    return result;
+}
+```
+
+## File Upload Summary
+
+### Citizen Reports
+- **Requirement**: Exactly 6 photos
+- **Formats**: JPG, JPEG, PNG
+- **Storage**: `/wwwroot/evidencias/{case_report_user_key}/`
+- **Naming**: `evidencia_1` through `evidencia_6`
+- **Display**: Bootstrap carousel
+
+### Agent Responses  
+- **Requirement**: 0-3 photos, 0-1 PDF (optional)
+- **Photo Formats**: JPG, JPEG, PNG
+- **PDF Format**: PDF only
+- **Storage**: `/wwwroot/evidencias_respuesta_caso/{case_id}/{response_id}/`
+- **Naming**: `foto_1`, `foto_2`, `foto_3`, `pdf_1.pdf`
+- **Display**: Image gallery + PDF download button
+
+<Tip>
+All file paths are stored as relative URLs in the database (e.g., `/evidencias/123_456_789_abc/evidencia_1.jpg`), making them easy to serve through the web application.
+</Tip>

@@ -1,0 +1,260 @@
+---
+title: 'HomeController API'
+description: 'Authentication and user management endpoints'
+icon: 'house'
+---
+
+The `HomeController` handles user authentication, registration, and session management. All endpoints return views or redirect actions except where noted.
+
+## Login
+
+### POST /Home/inicio_secion
+
+Authenticates a user and creates a session.
+
+<ParamField path="model" type="inicia_secion" required>
+  Login credentials object
+  
+  <Expandable title="properties">
+    <ParamField path="NumeroIdentificacion_login" type="string" required>
+      User's identification number
+    </ParamField>
+    <ParamField path="Contrasena_login" type="string" required>
+      User's password
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="success" type="redirect">
+  Redirects to `/Reportes/Index` on successful authentication
+</ResponseField>
+
+<ResponseField name="error" type="redirect">
+  Redirects to `/Home/Index` with error message in ViewBag
+</ResponseField>
+
+#### Session Variables Set
+
+On successful login, the following session variables are created:
+
+- `Id_user` (int): User's unique identifier
+- `Id_tipo_user` (int): User type identifier
+- `TipoUsuario` (string): User type name
+- `TipoIdentificacion` (string): Identification type
+- `Identificacion` (string): Identification number
+- `Nombre` (string): First name
+- `Apellido` (string): Last name
+- `Correo` (string): Email address
+- `Genero` (string): Gender
+- `FechaNacimiento` (string): Birth date in `yyyy-MM-dd` format
+
+#### Example Request
+
+```csharp
+var loginModel = new inicia_secion
+{
+    NumeroIdentificacion_login = "1234567890",
+    Contrasena_login = "mySecurePassword123"
+};
+```
+
+#### Implementation Details
+
+The endpoint calls the stored procedure `sp_validar_login` through the context:
+
+```csharp
+Usuario_Logueado usuario = await _context.ValidarLoginAsync(model);
+```
+
+---
+
+## Registration
+
+### POST /Home/nuevo_usuario
+
+Registers a new user and automatically logs them in.
+
+<ParamField path="model" type="Registro_usuario" required>
+  User registration data
+  
+  <Expandable title="properties">
+    <ParamField path="nombre_regist" type="string" required>
+      First name
+    </ParamField>
+    <ParamField path="apellido_regist" type="string" required>
+      Last name
+    </ParamField>
+    <ParamField path="tipo_doc_regist" type="string" required>
+      Identification type ID (from Tipo_identificacion catalog)
+    </ParamField>
+    <ParamField path="numero_doc_regist" type="int" required>
+      Identification number
+    </ParamField>
+    <ParamField path="email_regist" type="string" required>
+      Email address
+    </ParamField>
+    <ParamField path="clave_regist" type="string" required>
+      Password
+    </ParamField>
+    <ParamField path="fech_nacimien_regist" type="DateTime" required>
+      Date of birth
+    </ParamField>
+    <ParamField path="sexo_regist" type="int" required>
+      Gender ID (from Sexo catalog)
+    </ParamField>
+    <ParamField path="tipo_usuario" type="int" required>
+      User type identifier (1 = Citizen, 2 = Agent, etc.)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="success" type="redirect">
+  Redirects to `/Reportes/Index` after successful registration and auto-login
+</ResponseField>
+
+<ResponseField name="error" type="redirect">
+  Redirects to `/Home/Index` with error message
+</ResponseField>
+
+#### Example Request
+
+```csharp
+var registroModel = new Registro_usuario
+{
+    nombre_regist = "Juan",
+    apellido_regist = "Pérez",
+    tipo_doc_regist = "1", // CC (Cédula de Ciudadanía)
+    numero_doc_regist = 1234567890,
+    email_regist = "juan.perez@example.com",
+    clave_regist = "SecurePass123!",
+    fech_nacimien_regist = new DateTime(1990, 5, 15),
+    sexo_regist = 1, // Masculino
+    tipo_usuario = 1 // Ciudadano
+};
+```
+
+#### Workflow
+
+1. Calls `sp_registrar_usuario` stored procedure
+2. If registration succeeds (`Resultado = "1"`), automatically authenticates the user
+3. Creates session with user data
+4. Redirects to reports dashboard
+
+#### Implementation Details
+
+```csharp
+inicia_secion_respuesta_registro usuario_nuevo = await _context.ValidarregistroAsync(model);
+if(usuario_nuevo.Resultado == "1")
+{
+    // Auto-login the new user
+    Usuario_Logueado usuario = await _context.ValidarLoginAsync(respuesta);
+    // Create session...
+}
+```
+
+---
+
+## Session Management
+
+### GET /Home/CerrarSesion
+
+Logs out the current user and clears all session data.
+
+<ResponseField name="success" type="redirect">
+  Redirects to `/Home/Index` (login page)
+</ResponseField>
+
+#### Example Usage
+
+```html
+<a href="@Url.Action("CerrarSesion", "Home")">Cerrar Sesión</a>
+```
+
+#### Implementation
+
+```csharp
+HttpContext.Session.Clear(); // Removes all session data
+return new RedirectToActionResult("Index", "Home", null);
+```
+
+---
+
+## View Endpoints
+
+### GET /Home/Index
+
+Displays the login and registration page.
+
+<ResponseField name="ViewBag.OcultarMenu" type="bool">
+  Set to `true` to hide navigation menu
+</ResponseField>
+
+<ResponseField name="ViewBag.TiposIdentificacion" type="List<TipoIdentificacion>">
+  Available identification types for registration form
+</ResponseField>
+
+<ResponseField name="ViewBag.Sexos" type="List<Sexo>">
+  Available gender options for registration form
+</ResponseField>
+
+#### Implementation
+
+```csharp
+ViewBag.OcultarMenu = true;
+ViewBag.TiposIdentificacion = _context.Tipo_identificacion.ToList();
+ViewBag.Sexos = _context.Sexo.ToList();
+return View();
+```
+
+---
+
+### GET /Home/Privacy
+
+Displays the privacy policy page. Requires authentication.
+
+**Authorization**: `[VerificaSesion]` attribute enforces session validation.
+
+---
+
+## Error Handling
+
+### GET /Home/Error
+
+Displays error page with request tracking information.
+
+<ResponseField name="ErrorViewModel" type="object">
+  <Expandable title="properties">
+    <ResponseField name="RequestId" type="string">
+      Activity ID or HTTP context trace identifier for debugging
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Cache Configuration
+
+```csharp
+[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+```
+
+Error pages are never cached to ensure fresh error information.
+
+---
+
+## Security Notes
+
+<Warning>
+  The `[VerificaSesion]` filter is commented out at the controller level (line 9 in source). This means most endpoints are currently accessible without authentication except `Privacy` which has the attribute explicitly.
+</Warning>
+
+<Info>
+  Session data is stored server-side using ASP.NET Core session state. Ensure session middleware is properly configured in `Program.cs`.
+</Info>
+
+---
+
+## Database Stored Procedures Used
+
+- `sp_validar_login` - Validates user credentials and returns user data
+- `sp_registrar_usuario` - Creates new user account
+
+See [Stored Procedures Reference](/api/stored-procedures) for detailed documentation.

@@ -1,0 +1,831 @@
+---
+title: 'Database Schema'
+description: 'Database structure, relationships, and Entity Framework integration'
+icon: 'database'
+---
+
+## Database Overview
+
+Quejas Ciudadanas uses **SQL Server** as its database management system, accessed through **Entity Framework Core 9.0.4**. The database stores user information, complaint reports, catalog data, and agent responses.
+
+<CardGroup cols={2}>
+  <Card title="Database Server" icon="server">
+    SQL Server (Azure SQL Database in production)
+  </Card>
+  <Card title="ORM Framework" icon="code">
+    Entity Framework Core 9.0.4 with Code-First and Database-First hybrid approach
+  </Card>
+  <Card title="Migration Strategy" icon="arrows-rotate">
+    Stored procedures for complex operations, EF Core for CRUD
+  </Card>
+  <Card title="Connection Pooling" icon="layer-group">
+    Automatic connection pooling via EF Core
+  </Card>
+</CardGroup>
+
+## DbContext Configuration
+
+The `QuejasCiudadanasContext` class is the main entry point for database operations.
+
+**Location:** `Data/QuejasCiudadanasContext.cs`
+
+<CodeGroup>
+```csharp DbContext Class Definition (QuejasCiudadanasContext.cs:7-12)
+public class QuejasCiudadanasContext : DbContext
+{
+    public QuejasCiudadanasContext(
+        DbContextOptions<QuejasCiudadanasContext> options)
+        : base(options)
+    {
+    }
+
+    // DbSet properties and methods...
+}
+```
+
+```csharp Service Registration (Program.cs:6-8)
+var connectionString = builder.Configuration
+    .GetConnectionString("QuejasCiudadanaDb");
+
+builder.Services.AddDbContext<QuejasCiudadanasContext>(options =>
+    options.UseSqlServer(connectionString));
+```
+</CodeGroup>
+
+## Entity Sets (DbSets)
+
+The DbContext defines the following entity sets that map to database tables:
+
+### Catalog Tables
+
+<CodeGroup>
+```csharp Catalog DbSets (QuejasCiudadanasContext.cs:14-21)
+// Identity types (CC, TI, etc.)
+public DbSet<TipoIdentificacion> Tipo_identificacion { get; set; }
+
+// Gender options
+public DbSet<Sexo> Sexo { get; set; }
+
+// Problem classification hierarchy
+public DbSet<Problema> Problema { get; set; }
+public DbSet<Clase_Problema> Clase_Problema { get; set; }
+public DbSet<Tipo_Problema> Tipo_Problema { get; set; }
+
+// Geographic locations
+public DbSet<CAT001_DEPTOS> CAT001_DEPTOS { get; set; }
+public DbSet<CAT002_CIUDADES> CAT002_CIUDADES { get; set; }
+
+// Case status (Open, In Progress, Resolved, etc.)
+public DbSet<Estado_caso> Estado_caso { get; set; }
+```
+</CodeGroup>
+
+### Stored Procedure Result Sets
+
+These DbSets don't map to actual tables but to stored procedure results:
+
+<CodeGroup>
+```csharp Stored Procedure DbSets (QuejasCiudadanasContext.cs:41-42,54-55,77-78)
+// Login validation results
+public DbSet<Usuario_Logueado> LoginTemp { get; set; }
+
+// Registration results
+public DbSet<inicia_secion_respuesta_registro> RegisterTemp { get; set; }
+
+// Report save results
+public DbSet<respuesta_repote_registrado> ReporteTemp { get; set; }
+
+// Photo upload results
+public DbSet<respuesta_repote_fotos> Reportefotos { get; set; }
+
+// Report search results
+public DbSet<CasoFiltrado> Consulta_report { get; set; }
+
+// Detailed report information
+public DbSet<ReporteInfraestructura> ReporteInfraestructura { get; set; }
+
+// Report photos
+public DbSet<ReporteInfraestructura_fotos> ReporteInfraestructura_fotos { get; set; }
+
+// Agent response results
+public DbSet<respuesta_repote_registrado_agente> Registrar_respuesta_agente { get; set; }
+public DbSet<respuesta_repote_fotos_agente> Reportefotos_agentes { get; set; }
+public DbSet<respuesta_repote_adjunto_agente> Reporteadjunto_agentes { get; set; }
+public DbSet<respuesta_agente_recibe> respuesta_agente { get; set; }
+public DbSet<ReporteInfraestructura_fotos_agente> respuesta_agente_fotos { get; set; }
+public DbSet<ReporteInfraestructura_fotos_adjuntos> respuesta_agente_adjunto { get; set; }
+```
+</CodeGroup>
+
+<Info>
+Entity Framework Core allows using `DbSet<T>` with classes that don't map to tables. This is useful when working with stored procedure results, which return dynamic result sets.
+</Info>
+
+## Entity Relationships
+
+Relationships are configured in the `OnModelCreating` method:
+
+<CodeGroup>
+```csharp Entity Relationships (QuejasCiudadanasContext.cs:22-40)
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+{
+    // Problem -> Clase_Problema (One-to-Many)
+    modelBuilder.Entity<Clase_Problema>()
+        .HasOne(c => c.Problema)
+        .WithMany(p => p.Clases_Problema)
+        .HasForeignKey(c => c.Id_Problema);
+
+    // Clase_Problema -> Tipo_Problema (One-to-Many)
+    modelBuilder.Entity<Tipo_Problema>()
+        .HasOne(t => t.Clase_Problema)
+        .WithMany(c => c.Tipos_Problema)
+        .HasForeignKey(t => t.Id_Clase_Problema);
+
+    // Departamento -> Ciudad (One-to-Many)
+    modelBuilder.Entity<CAT002_CIUDADES>()
+        .HasOne(c => c.CAT001_DEPTOS)
+        .WithMany(d => d.Ciudades)
+        .HasForeignKey(c => c.A002CODDEPTO)
+        .HasPrincipalKey(d => d.A001CODIGO);
+}
+```
+</CodeGroup>
+
+### Entity Relationship Diagram
+
+```
+┌─────────────┐
+│  Problema   │
+│─────────────│
+│ Id_Problema │◄───┐
+│ Nombre      │    │
+└─────────────┘    │ One-to-Many
+                   │
+          ┌────────┴────────────┐
+          │  Clase_Problema     │
+          │─────────────────────│
+          │ Id_Clase_Problema   │◄───┐
+          │ Id_Problema (FK)    │    │
+          │ Nombre              │    │
+          └─────────────────────┘    │ One-to-Many
+                                     │
+                      ┌──────────────┴──────────┐
+                      │  Tipo_Problema          │
+                      │─────────────────────────│
+                      │ Id_Tipo_Problema        │
+                      │ Id_Clase_Problema (FK)  │
+                      │ Nombre                  │
+                      └─────────────────────────┘
+
+┌─────────────────┐
+│  CAT001_DEPTOS  │
+│─────────────────│
+│ A001ID          │
+│ A001CODIGO (PK) │◄───┐
+│ A001DESCRIPCION │    │ One-to-Many
+└─────────────────┘    │
+                       │
+          ┌────────────┴────────────┐
+          │  CAT002_CIUDADES        │
+          │─────────────────────────│
+          │ A002ID                  │
+          │ A002CODDEPTO (FK)       │
+          │ A002CODCIUDAD           │
+          │ A002DESCRIPCION         │
+          │ A002CODUBICACION        │
+          └─────────────────────────┘
+```
+
+<Note>
+The Ciudad-Departamento relationship uses `A001CODIGO` (not the primary key `A001ID`) as the principal key. This is configured with `.HasPrincipalKey(d => d.A001CODIGO)`.
+</Note>
+
+## Stored Procedures
+
+The application relies heavily on stored procedures for complex business logic:
+
+### Authentication Procedures
+
+<Accordion title="sp_validar_login - User Login Validation">
+
+**Parameters:**
+- `@Identificacion` (string) - User's ID number
+- `@Clave` (string) - User's password
+
+**Returns:** `Usuario_Logueado` with user information if credentials are valid
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:42-52)
+public async Task<Usuario_Logueado?> ValidarLoginAsync(inicia_secion model)
+{
+    var identificacionParam = new SqlParameter(
+        "@Identificacion", model.NumeroIdentificacion_login);
+    var claveParam = new SqlParameter(
+        "@Clave", model.Contrasena_login);
+
+    var result = await LoginTemp
+        .FromSqlRaw(
+            "EXEC sp_validar_login @Identificacion, @Clave", 
+            identificacionParam, 
+            claveParam)
+        .ToListAsync();
+
+    return result.FirstOrDefault();
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+<Accordion title="sp_registrar_usuario - User Registration">
+
+**Parameters:**
+- `@Id_tipo_user` (int) - User type (citizen, agent, etc.)
+- `@Id_identificacion` (int) - ID document type
+- `@Identificacion_reg` (string) - ID number
+- `@Nombre` (string)
+- `@Apellido` (string)
+- `@Correo` (string)
+- `@FechaNacimiento` (DateTime)
+- `@Id_genero` (int)
+- `@CLAVE` (string) - Password
+
+**Returns:** `inicia_secion_respuesta_registro` with result status
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:55-75)
+public async Task<inicia_secion_respuesta_registro?> 
+    ValidarregistroAsync(Registro_usuario model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@Id_tipo_user", model.tipo_usuario),
+        new SqlParameter("@Id_identificacion", model.tipo_doc_regist),
+        new SqlParameter("@Identificacion_reg", model.numero_doc_regist),
+        new SqlParameter("@Nombre", model.nombre_regist),
+        new SqlParameter("@Apellido", model.apellido_regist),
+        new SqlParameter("@Correo", model.email_regist),
+        new SqlParameter("@FechaNacimiento", model.fech_nacimien_regist),
+        new SqlParameter("@Id_genero", model.sexo_regist),
+        new SqlParameter("@CLAVE", model.clave_regist)
+    };
+
+    var result = await RegisterTemp
+        .FromSqlRaw(
+            "EXEC sp_registrar_usuario @Id_tipo_user, @Id_identificacion, " +
+            "@Identificacion_reg, @Nombre, @Apellido, @Correo, " +
+            "@FechaNacimiento, @Id_genero, @CLAVE", 
+            parametros)
+        .ToListAsync();
+
+    return result.FirstOrDefault();
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+### Report Management Procedures
+
+<Accordion title="sp_guardar_report_ciudadanos - Save New Report">
+
+**Parameters:**
+- `@Id_user` (int) - User ID
+- `@id_estado` (int) - Initial case status (typically 1 for "New")
+- `@Latitud` (string) - GPS latitude
+- `@Longitud` (string) - GPS longitude
+- `@Geohash` (string) - Geohash for location clustering
+- `@TipoProblema` (string) - Problem type ID
+- `@Ciudad` (string) - City code
+- `@Direccion` (string) - Street address
+- `@Descripcion` (string) - Problem description
+
+**Returns:** `respuesta_repote_registrado` with case ID, report ID, and unique key
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:78-109)
+public async Task<respuesta_repote_registrado?> 
+    GuardarReporteCiudadanoAsync(Reporte_nuevo model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@Id_user", model.Id_user),
+        new SqlParameter("@id_estado", model.id_estado),
+        new SqlParameter("@Latitud", model.Latitud),
+        new SqlParameter("@Longitud", model.Longitud),
+        new SqlParameter("@Geohash", model.Geohash),
+        new SqlParameter("@TipoProblema", model.TipoProblema),
+        new SqlParameter("@Ciudad", model.Ciudad),
+        new SqlParameter("@Direccion", model.Direccion),
+        new SqlParameter("@Descripcion", model.Descripcion)
+    };
+
+    var result = await ReporteTemp
+        .FromSqlRaw(
+            "EXEC sp_guardar_report_ciudadanos @Id_user, @id_estado, " +
+            "@Latitud, @Longitud, @Geohash, @TipoProblema, @Ciudad, " +
+            "@Direccion, @Descripcion", 
+            parametros)
+        .ToListAsync();
+
+    return result.FirstOrDefault();
+}
+```
+</CodeGroup>
+
+<Info>
+The stored procedure uses **Geohash** to cluster nearby reports into the same "case". Reports within a certain distance and of the same problem type are grouped together.
+</Info>
+
+</Accordion>
+
+<Accordion title="sp_guardar_foto_reporte - Save Report Photo">
+
+**Parameters:**
+- `@Id_reporte` (int) - Report ID
+- `@Nombre_imagen` (string) - File name
+- `@Ruta_foto` (string) - Relative file path
+
+**Returns:** `respuesta_repote_fotos` with error status
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:112-127)
+public async Task<respuesta_repote_fotos?> 
+    GuardarReporteFotosAsync(Reporte_nuevo_fotos model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@Id_reporte", model.Id_reporte),
+        new SqlParameter("@Nombre_imagen", model.Nombre_imagen),
+        new SqlParameter("@Ruta_foto", model.Ruta_foto)
+    };
+
+    var result = await Reportefotos
+        .FromSqlRaw(
+            "EXEC sp_guardar_foto_reporte @Id_reporte, " +
+            "@Nombre_imagen, @Ruta_foto", 
+            parametros)
+        .ToListAsync();
+
+    return result.FirstOrDefault();
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+<Accordion title="sp_ConsultaCasosFiltrados - Search Reports">
+
+**Parameters:**
+- `@problemaSelect` (int) - Problem ID filter
+- `@claseProblemaSelect` (int) - Problem class filter
+- `@tipoProblemaSelect` (int) - Problem type filter
+- `@selectDepto` (string) - Department code filter
+- `@selectCiudad` (string) - City code filter
+- `@Estado_del_caso` (int) - Case status filter
+
+**Returns:** List of `CasoFiltrado` matching the criteria
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:149-186)
+public async Task<List<CasoFiltrado>> 
+    ObtenerCasosFiltradosAsync(Filtros_buscar_reportes model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@problemaSelect", model.problemaSelect),
+        new SqlParameter("@claseProblemaSelect", model.claseProblemaSelect),
+        new SqlParameter("@tipoProblemaSelect", model.tipoProblemaSelect),
+        new SqlParameter("@selectDepto", model.selectDepto),
+        new SqlParameter("@selectCiudad", model.selectCiudad),
+        new SqlParameter("@Estado_del_caso", model.Estado_del_caso)
+    };
+
+    try
+    {
+        var result = await Consulta_report
+            .FromSqlRaw(
+                "EXEC sp_ConsultaCasosFiltrados @problemaSelect, " +
+                "@claseProblemaSelect, @tipoProblemaSelect, @selectDepto, " +
+                "@selectCiudad, @Estado_del_caso", 
+                parametros)
+            .ToListAsync();
+
+        return result;
+    }
+    catch (Exception ex)
+    {
+        throw new Exception(
+            "Error al ejecutar el procedimiento almacenado", ex);
+    }
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+<Accordion title="Sp_consulta_reportes_unicos - Get Report Details">
+
+**Parameters:**
+- `@IdCaso` (int) - Case ID
+- `@IdReporte` (int) - Specific report ID (or -1 for all reports in case)
+
+**Returns:** List of `ReporteInfraestructura` with detailed information
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:190-220)
+public async Task<List<ReporteInfraestructura>> 
+    ObtenerCasosreportesAsync(Consultar_reportes_caso model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@IdCaso", model.IdCaso),
+        new SqlParameter("@IdReporte", model.IdReporte)
+    };
+
+    try
+    {
+        var result = await ReporteInfraestructura
+            .FromSqlRaw(
+                "EXEC Sp_consulta_reportes_unicos @IdCaso, @IdReporte", 
+                parametros)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return result;
+    }
+    catch (Exception ex)
+    {
+        throw new Exception(
+            "Error al ejecutar el procedimiento almacenado", ex);
+    }
+}
+```
+</CodeGroup>
+
+<Note>
+`.AsNoTracking()` is used because these are read-only query results that won't be modified. This improves performance by skipping change tracking.
+</Note>
+
+</Accordion>
+
+### Agent Response Procedures
+
+<Accordion title="sp_Guardar_RespuestaAgente - Save Agent Response">
+
+**Parameters:**
+- `@Id_caso` (int) - Case ID
+- `@id_opcion_caso` (int) - Response type (e.g., 1=In Progress, 2=Resolved)
+- `@Descripcion` (string) - Agent's comments
+
+**Returns:** `respuesta_repote_registrado_agente` with response ID
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:255-269)
+public async Task<respuesta_repote_registrado_agente?> 
+    AnsycRegistrar_respuesta_agente(FormularioModel_respuesta_caso model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@Id_caso", model.id_caso),
+        new SqlParameter("@id_opcion_caso", model.opcion),
+        new SqlParameter("@Descripcion", model.comentario)
+    };
+
+    var result = await Registrar_respuesta_agente
+        .FromSqlRaw(
+            "EXEC sp_Guardar_RespuestaAgente @Id_caso, " +
+            "@id_opcion_caso, @Descripcion", 
+            parametros)
+        .ToListAsync();
+
+    return result.FirstOrDefault();
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+<Accordion title="Sp_obtener_respuestas_agente - Get Agent Responses">
+
+**Parameters:**
+- `@IdCaso` (int) - Case ID
+
+**Returns:** List of `respuesta_agente_recibe` with agent responses
+
+<CodeGroup>
+```csharp Usage (QuejasCiudadanasContext.cs:308-336)
+public async Task<List<respuesta_agente_recibe>> 
+    Obtenerrespuesta_agenteAsync(Respuestas_agente model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@IdCaso", model.IdCaso)
+    };
+
+    try
+    {
+        var result = await respuesta_agente
+            .FromSqlRaw(
+                "EXEC Sp_obtener_respuestas_agente @IdCaso", 
+                parametros)
+            .AsNoTracking()
+            .ToListAsync();
+
+        return result;
+    }
+    catch (Exception ex)
+    {
+        throw new Exception(
+            "Error al ejecutar el procedimiento almacenado", ex);
+    }
+}
+```
+</CodeGroup>
+
+</Accordion>
+
+## Data Access Patterns
+
+### Pattern 1: Direct Entity Framework Queries
+
+Used for simple CRUD operations on catalog tables:
+
+<CodeGroup>
+```csharp Example: Fetching Dropdown Data
+// Get all problem types
+var problemas = _context.Problema.ToList();
+
+// Get problem classes filtered by problem ID
+var clases = _context.Clase_Problema
+    .Where(c => c.Id_Problema == id)
+    .Select(c => new { 
+        id_Clase_Problema = c.Id_Clase_Problema, 
+        nombre = c.Nombre 
+    })
+    .ToList();
+```
+</CodeGroup>
+
+### Pattern 2: Stored Procedure Calls
+
+Used for complex business logic and data transformations:
+
+<CodeGroup>
+```csharp Example: Calling Stored Procedure
+// 1. Create parameters
+var parametros = new[]
+{
+    new SqlParameter("@Id_user", userId),
+    new SqlParameter("@Descripcion", description)
+};
+
+// 2. Execute with FromSqlRaw
+var result = await _context.SomeDbSet
+    .FromSqlRaw(
+        "EXEC sp_stored_procedure_name @Id_user, @Descripcion", 
+        parametros)
+    .ToListAsync();
+
+// 3. Return first result or entire list
+return result.FirstOrDefault();
+```
+</CodeGroup>
+
+<Warning>
+**SQL Injection Prevention:** Always use `SqlParameter` objects when passing values to stored procedures. Never concatenate user input directly into SQL strings.
+</Warning>
+
+## Connection String Configuration
+
+<CodeGroup>
+```json appsettings.json
+{
+  "ConnectionStrings": {
+    "QuejasCiudadanaDb": "Server=db24030.public.databaseasp.net; Database=db24030; User Id=db24030; Password=***; Encrypt=True; TrustServerCertificate=True; MultipleActiveResultSets=True;"
+  }
+}
+```
+</CodeGroup>
+
+**Connection String Parameters:**
+
+| Parameter | Value | Purpose |
+|-----------|-------|----------|
+| `Server` | Database host | Azure SQL Database endpoint |
+| `Database` | Database name | Target database |
+| `User Id` | Username | SQL authentication |
+| `Password` | Password | SQL authentication |
+| `Encrypt` | True | Enable TLS encryption |
+| `TrustServerCertificate` | True | Accept self-signed certificates |
+| `MultipleActiveResultSets` | True | Allow multiple result sets on one connection |
+
+<Info>
+**MultipleActiveResultSets=True** allows reading from one query while iterating through another on the same connection. This is useful when nesting queries.
+</Info>
+
+## Database Tables Schema
+
+While the exact table definitions exist in SQL Server, the Entity Framework models reveal the structure:
+
+### Core Tables
+
+<Accordion title="Usuario - User Accounts">
+
+```sql
+CREATE TABLE Usuario (
+    Id_user INT PRIMARY KEY IDENTITY,
+    Id_tipo_user INT,
+    Id_identificacion INT,
+    Identificacion VARCHAR(50),
+    Nombre VARCHAR(100),
+    Apellido VARCHAR(100),
+    Correo VARCHAR(200),
+    FechaNacimiento DATE,
+    Id_genero INT,
+    Clave VARCHAR(255)
+);
+```
+
+</Accordion>
+
+<Accordion title="Caso - Complaint Cases (Grouping of Reports)">
+
+```sql
+CREATE TABLE Caso (
+    Id_caso INT PRIMARY KEY IDENTITY,
+    Id_tipo_problema INT,
+    Id_estado_caso INT,
+    Geohash VARCHAR(20),
+    Fecha_registro DATETIME,
+    Latitud VARCHAR(50),
+    Longitud VARCHAR(50)
+);
+```
+
+<Note>
+**Geohash** is used to cluster nearby reports. Reports with the same problem type and similar geohash are grouped into one case.
+</Note>
+
+</Accordion>
+
+<Accordion title="Reporte - Individual Citizen Reports">
+
+```sql
+CREATE TABLE Reporte (
+    Id_reporte INT PRIMARY KEY IDENTITY,
+    Id_caso INT FOREIGN KEY REFERENCES Caso(Id_caso),
+    Id_user INT FOREIGN KEY REFERENCES Usuario(Id_user),
+    Descripcion TEXT,
+    Direccion VARCHAR(500),
+    Fecha_registro DATETIME
+);
+```
+
+</Accordion>
+
+<Accordion title="Foto_reporte - Report Photos">
+
+```sql
+CREATE TABLE Foto_reporte (
+    Id_foto INT PRIMARY KEY IDENTITY,
+    Id_reporte INT FOREIGN KEY REFERENCES Reporte(Id_reporte),
+    Nombre_imagen VARCHAR(200),
+    Ruta_foto VARCHAR(500)
+);
+```
+
+</Accordion>
+
+<Accordion title="Respuesta_agente - Agent Responses">
+
+```sql
+CREATE TABLE Respuesta_agente (
+    Id_resp_agente INT PRIMARY KEY IDENTITY,
+    Id_caso INT FOREIGN KEY REFERENCES Caso(Id_caso),
+    Id_opcion_caso INT,
+    Descripcion TEXT,
+    Fecha_registro DATETIME
+);
+```
+
+</Accordion>
+
+### Catalog Tables
+
+<Accordion title="Problema, Clase_Problema, Tipo_Problema - Problem Classification">
+
+```sql
+-- Level 1: General problem category
+CREATE TABLE Problema (
+    Id_Problema INT PRIMARY KEY IDENTITY,
+    Nombre VARCHAR(200)
+);
+
+-- Level 2: Problem class
+CREATE TABLE Clase_Problema (
+    Id_Clase_Problema INT PRIMARY KEY IDENTITY,
+    Id_Problema INT FOREIGN KEY REFERENCES Problema(Id_Problema),
+    Nombre VARCHAR(200)
+);
+
+-- Level 3: Specific problem type
+CREATE TABLE Tipo_Problema (
+    Id_Tipo_Problema INT PRIMARY KEY IDENTITY,
+    Id_Clase_Problema INT FOREIGN KEY REFERENCES Clase_Problema(Id_Clase_Problema),
+    Nombre VARCHAR(200)
+);
+```
+
+**Example Hierarchy:**
+- Problema: "Infraestructura"
+  - Clase_Problema: "Vías"
+    - Tipo_Problema: "Bache"
+    - Tipo_Problema: "Grieta"
+  - Clase_Problema: "Alumbrado"
+    - Tipo_Problema: "Poste dañado"
+
+</Accordion>
+
+## File Storage Strategy
+
+While file metadata is stored in the database, actual files are stored in the `wwwroot` directory:
+
+<CodeGroup>
+```
+wwwroot/
+├── evidencias/
+│   └── {IdCaso}_{IdReporte}_{IdUser}_{UniqueKey}/
+│       ├── evidencia_1.jpg
+│       ├── evidencia_2.jpg
+│       └── ...
+└── evidencias_respuesta_caso/
+    └── {IdCaso}/
+        └── {IdRespuestaAgente}/
+            ├── adjunto_foto/
+            │   ├── foto_1.jpg
+            │   └── foto_2.jpg
+            └── adjunto_pdf/
+                └── pdf_1.pdf
+```
+</CodeGroup>
+
+<Info>
+File paths stored in the database are relative URLs starting with `/evidencias/...` that can be used directly in `<img>` tags or download links.
+</Info>
+
+## Performance Optimization
+
+<CardGroup cols={2}>
+  <Card title="Async Queries" icon="bolt">
+    All database operations use `async/await` with `ToListAsync()` and `FirstOrDefaultAsync()`
+  </Card>
+  
+  <Card title="No Tracking" icon="gauge-high">
+    Read-only queries use `.AsNoTracking()` to skip change tracking overhead
+  </Card>
+  
+  <Card title="Parameterized Queries" icon="shield">
+    All dynamic values use `SqlParameter` for both security and performance (query plan caching)
+  </Card>
+  
+  <Card title="Stored Procedures" icon="database">
+    Complex logic executed in database reduces network round-trips
+  </Card>
+</CardGroup>
+
+## Best Practices
+
+<Steps>
+  <Step title="Always Use Parameters">
+    Never concatenate user input into SQL strings. Use `SqlParameter` objects.
+  </Step>
+  
+  <Step title="Use Async Methods">
+    Call `ToListAsync()`, `FirstOrDefaultAsync()`, etc. instead of synchronous versions.
+  </Step>
+  
+  <Step title="Optimize Read-Only Queries">
+    Add `.AsNoTracking()` to queries that won't modify entities.
+  </Step>
+  
+  <Step title="Handle Nulls Gracefully">
+    Use nullable types (`?`) and null-coalescing operators (`??`) when dealing with optional data.
+  </Step>
+  
+  <Step title="Log SQL Exceptions">
+    Wrap stored procedure calls in try-catch blocks and provide meaningful error messages.
+  </Step>
+</Steps>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Architecture Overview" icon="sitemap" href="/architecture/overview">
+    Return to high-level system architecture
+  </Card>
+  
+  <Card title="MVC Structure" icon="folder-tree" href="/architecture/mvc-structure">
+    Explore Controllers, Views, and Models
+  </Card>
+</CardGroup>

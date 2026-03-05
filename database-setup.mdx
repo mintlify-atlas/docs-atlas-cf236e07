@@ -1,0 +1,804 @@
+---
+title: Database Setup
+description: Set up the SQL Server database, schema, and stored procedures for Quejas Ciudadanas
+---
+
+## Overview
+
+Quejas Ciudadanas uses SQL Server as its database backend with Entity Framework Core for ORM and stored procedures for complex operations. This guide will walk you through setting up the complete database infrastructure.
+
+## Prerequisites
+
+<CardGroup cols={2}>
+  <Card title="SQL Server" icon="database">
+    SQL Server 2016 or later installed and running
+  </Card>
+  <Card title="Configuration" icon="gear">
+    Connection string configured in appsettings.json
+  </Card>
+</CardGroup>
+
+<Note>
+  Ensure you have completed the [Installation](/installation) and [Configuration](/configuration) steps before proceeding.
+</Note>
+
+## Database Creation
+
+<Steps>
+  <Step title="Connect to SQL Server">
+    Open SQL Server Management Studio (SSMS) or Azure Data Studio and connect to your SQL Server instance.
+
+    <CodeGroup>
+    ```bash SSMS
+    # Connect using:
+    Server: localhost
+    Authentication: SQL Server Authentication
+    Login: sa
+    Password: [Your SA Password]
+    ```
+
+    ```bash sqlcmd
+    sqlcmd -S localhost -U sa -P YourPassword
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Create Database">
+    Execute the following SQL to create the database:
+
+    ```sql
+    CREATE DATABASE quejas_ciudadana;
+    GO
+
+    USE quejas_ciudadana;
+    GO
+    ```
+  </Step>
+
+  <Step title="Verify Database Creation">
+    ```sql
+    SELECT name FROM sys.databases WHERE name = 'quejas_ciudadana';
+    ```
+
+    You should see `quejas_ciudadana` in the results.
+  </Step>
+</Steps>
+
+## Database Schema
+
+The application uses the following main tables:
+
+### Catalog Tables
+
+<CodeGroup>
+```sql Tipo_identificacion
+CREATE TABLE Tipo_identificacion (
+    Id_identificacion INT PRIMARY KEY IDENTITY(1,1),
+    Descripcion NVARCHAR(100) NOT NULL
+);
+
+-- Insert sample data
+INSERT INTO Tipo_identificacion (Descripcion) VALUES 
+    ('Cédula de Ciudadanía'),
+    ('Cédula de Extranjería'),
+    ('Pasaporte'),
+    ('Tarjeta de Identidad');
+```
+
+```sql Sexo
+CREATE TABLE Sexo (
+    Id_sexo INT PRIMARY KEY IDENTITY(1,1),
+    Descripcion NVARCHAR(50) NOT NULL
+);
+
+-- Insert sample data
+INSERT INTO Sexo (Descripcion) VALUES 
+    ('Masculino'),
+    ('Femenino'),
+    ('Otro');
+```
+
+```sql Estado_caso
+CREATE TABLE Estado_caso (
+    Id_estado_caso INT PRIMARY KEY IDENTITY(1,1),
+    Descripcion NVARCHAR(100) NOT NULL
+);
+
+-- Insert sample data
+INSERT INTO Estado_caso (Descripcion) VALUES 
+    ('Pendiente'),
+    ('En Proceso'),
+    ('Resuelto'),
+    ('Cerrado');
+```
+</CodeGroup>
+
+### Problem Classification Tables
+
+<CodeGroup>
+```sql Problema
+CREATE TABLE Problema (
+    Id_Problema INT PRIMARY KEY IDENTITY(1,1),
+    Nombre NVARCHAR(200) NOT NULL
+);
+
+-- Insert sample data
+INSERT INTO Problema (Nombre) VALUES 
+    ('Infraestructura'),
+    ('Servicios Públicos'),
+    ('Seguridad'),
+    ('Medio Ambiente');
+```
+
+```sql Clase_Problema
+CREATE TABLE Clase_Problema (
+    Id_Clase_Problema INT PRIMARY KEY IDENTITY(1,1),
+    Nombre NVARCHAR(200) NOT NULL,
+    Id_Problema INT NOT NULL,
+    CONSTRAINT FK_Clase_Problema_Problema 
+        FOREIGN KEY (Id_Problema) 
+        REFERENCES Problema(Id_Problema)
+);
+
+-- Insert sample data
+INSERT INTO Clase_Problema (Nombre, Id_Problema) VALUES 
+    ('Vías', 1),
+    ('Alumbrado', 1),
+    ('Agua', 2),
+    ('Alcantarillado', 2);
+```
+
+```sql Tipo_Problema
+CREATE TABLE Tipo_Problema (
+    Id_Tipo_Problema INT PRIMARY KEY IDENTITY(1,1),
+    Nombre NVARCHAR(200) NOT NULL,
+    Id_Clase_Problema INT NOT NULL,
+    CONSTRAINT FK_Tipo_Problema_Clase_Problema 
+        FOREIGN KEY (Id_Clase_Problema) 
+        REFERENCES Clase_Problema(Id_Clase_Problema)
+);
+
+-- Insert sample data
+INSERT INTO Tipo_Problema (Nombre, Id_Clase_Problema) VALUES 
+    ('Bache en vía principal', 1),
+    ('Grieta en andén', 1),
+    ('Bombilla fundida', 2),
+    ('Poste dañado', 2);
+```
+</CodeGroup>
+
+### Geographic Tables
+
+<CodeGroup>
+```sql CAT001_DEPTOS (Departamentos)
+CREATE TABLE CAT001_DEPTOS (
+    A001ID SMALLINT PRIMARY KEY IDENTITY(1,1),
+    A001CODIGO NVARCHAR(10) NOT NULL UNIQUE,
+    A001DESCRIPCION NVARCHAR(100) NOT NULL
+);
+
+-- Insert sample data (Colombian departments)
+INSERT INTO CAT001_DEPTOS (A001CODIGO, A001DESCRIPCION) VALUES 
+    ('05', 'Antioquia'),
+    ('11', 'Bogotá D.C.'),
+    ('76', 'Valle del Cauca');
+```
+
+```sql CAT002_CIUDADES (Ciudades)
+CREATE TABLE CAT002_CIUDADES (
+    A002ID SMALLINT PRIMARY KEY IDENTITY(1,1),
+    A002CODDEPTO NVARCHAR(10) NOT NULL,
+    A002CODCIUDAD NVARCHAR(10) NOT NULL,
+    A002DESCRIPCION NVARCHAR(100) NOT NULL,
+    A002CODUBICACION NVARCHAR(20),
+    CONSTRAINT FK_Ciudades_Deptos 
+        FOREIGN KEY (A002CODDEPTO) 
+        REFERENCES CAT001_DEPTOS(A001CODIGO)
+);
+
+-- Insert sample data
+INSERT INTO CAT002_CIUDADES (A002CODDEPTO, A002CODCIUDAD, A002DESCRIPCION, A002CODUBICACION) VALUES 
+    ('05', '001', 'Medellín', '05001'),
+    ('11', '001', 'Bogotá', '11001'),
+    ('76', '001', 'Cali', '76001');
+```
+</CodeGroup>
+
+<Warning>
+  The geographic tables use specific Colombian administrative codes (DANE). Adjust these according to your region if deploying outside Colombia.
+</Warning>
+
+## Stored Procedures
+
+The application uses stored procedures for critical operations. Below are the required stored procedures:
+
+### User Authentication
+
+<CodeGroup>
+```sql sp_validar_login
+CREATE PROCEDURE sp_validar_login
+    @Identificacion NVARCHAR(50),
+    @Clave NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SELECT 
+        u.Id_usuario,
+        u.Nombre,
+        u.Apellido,
+        u.Correo,
+        u.Id_tipo_user,
+        t.Descripcion AS TipoUsuario
+    FROM Usuarios u
+    INNER JOIN Tipo_Usuario t ON u.Id_tipo_user = t.Id_tipo_user
+    WHERE u.Identificacion_reg = @Identificacion 
+        AND u.CLAVE = @Clave
+        AND u.Activo = 1;
+END;
+GO
+```
+
+```sql sp_registrar_usuario
+CREATE PROCEDURE sp_registrar_usuario
+    @Id_tipo_user INT,
+    @Id_identificacion INT,
+    @Identificacion_reg NVARCHAR(50),
+    @Nombre NVARCHAR(100),
+    @Apellido NVARCHAR(100),
+    @Correo NVARCHAR(150),
+    @FechaNacimiento DATE,
+    @Id_genero INT,
+    @CLAVE NVARCHAR(255)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        -- Check if user already exists
+        IF EXISTS (SELECT 1 FROM Usuarios WHERE Identificacion_reg = @Identificacion_reg)
+        BEGIN
+            SELECT 0 AS Resultado, 'El usuario ya existe' AS Mensaje;
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        -- Insert new user
+        INSERT INTO Usuarios (
+            Id_tipo_user, Id_identificacion, Identificacion_reg,
+            Nombre, Apellido, Correo, FechaNacimiento, Id_genero, CLAVE, Activo
+        )
+        VALUES (
+            @Id_tipo_user, @Id_identificacion, @Identificacion_reg,
+            @Nombre, @Apellido, @Correo, @FechaNacimiento, @Id_genero, @CLAVE, 1
+        );
+        
+        SELECT 1 AS Resultado, 'Usuario registrado exitosamente' AS Mensaje;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        SELECT 0 AS Resultado, ERROR_MESSAGE() AS Mensaje;
+    END CATCH
+END;
+GO
+```
+</CodeGroup>
+
+### Report Management
+
+<CodeGroup>
+```sql sp_guardar_report_ciudadanos
+CREATE PROCEDURE sp_guardar_report_ciudadanos
+    @Id_user INT,
+    @id_estado INT,
+    @Latitud DECIMAL(10, 8),
+    @Longitud DECIMAL(11, 8),
+    @Geohash NVARCHAR(50),
+    @TipoProblema INT,
+    @Ciudad SMALLINT,
+    @Direccion NVARCHAR(500),
+    @Descripcion NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        DECLARE @Id_reporte INT;
+        
+        -- Insert report
+        INSERT INTO Reportes (
+            Id_usuario, Id_estado, Latitud, Longitud, Geohash,
+            Id_tipo_problema, Id_ciudad, Direccion, Descripcion,
+            Fecha_reporte
+        )
+        VALUES (
+            @Id_user, @id_estado, @Latitud, @Longitud, @Geohash,
+            @TipoProblema, @Ciudad, @Direccion, @Descripcion,
+            GETDATE()
+        );
+        
+        SET @Id_reporte = SCOPE_IDENTITY();
+        
+        SELECT 
+            1 AS Resultado, 
+            'Reporte creado exitosamente' AS Mensaje,
+            @Id_reporte AS Id_reporte;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        SELECT 0 AS Resultado, ERROR_MESSAGE() AS Mensaje;
+    END CATCH
+END;
+GO
+```
+
+```sql sp_guardar_foto_reporte
+CREATE PROCEDURE sp_guardar_foto_reporte
+    @Id_reporte INT,
+    @Nombre_imagen NVARCHAR(255),
+    @Ruta_foto NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        INSERT INTO Fotos_Reporte (
+            Id_reporte, Nombre_imagen, Ruta_foto, Fecha_subida
+        )
+        VALUES (
+            @Id_reporte, @Nombre_imagen, @Ruta_foto, GETDATE()
+        );
+        
+        SELECT 1 AS Resultado, 'Foto guardada exitosamente' AS Mensaje;
+    END TRY
+    BEGIN CATCH
+        SELECT 0 AS Resultado, ERROR_MESSAGE() AS Mensaje;
+    END CATCH
+END;
+GO
+```
+</CodeGroup>
+
+### Query Procedures
+
+<CodeGroup>
+```sql sp_ConsultaCasosFiltrados
+CREATE PROCEDURE sp_ConsultaCasosFiltrados
+    @problemaSelect INT,
+    @claseProblemaSelect INT,
+    @tipoProblemaSelect INT,
+    @selectDepto SMALLINT = NULL,
+    @selectCiudad SMALLINT = NULL,
+    @Estado_del_caso INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        r.Id_reporte,
+        r.Id_caso,
+        r.Direccion,
+        r.Descripcion,
+        r.Fecha_reporte,
+        r.Latitud,
+        r.Longitud,
+        p.Nombre AS Problema,
+        cp.Nombre AS ClaseProblema,
+        tp.Nombre AS TipoProblema,
+        c.A002DESCRIPCION AS Ciudad,
+        d.A001DESCRIPCION AS Departamento,
+        e.Descripcion AS Estado,
+        u.Nombre + ' ' + u.Apellido AS Reportante
+    FROM Reportes r
+    INNER JOIN Tipo_Problema tp ON r.Id_tipo_problema = tp.Id_Tipo_Problema
+    INNER JOIN Clase_Problema cp ON tp.Id_Clase_Problema = cp.Id_Clase_Problema
+    INNER JOIN Problema p ON cp.Id_Problema = p.Id_Problema
+    INNER JOIN CAT002_CIUDADES c ON r.Id_ciudad = c.A002ID
+    INNER JOIN CAT001_DEPTOS d ON c.A002CODDEPTO = d.A001CODIGO
+    INNER JOIN Estado_caso e ON r.Id_estado = e.Id_estado_caso
+    INNER JOIN Usuarios u ON r.Id_usuario = u.Id_usuario
+    WHERE 
+        (@problemaSelect = 0 OR p.Id_Problema = @problemaSelect)
+        AND (@claseProblemaSelect = 0 OR cp.Id_Clase_Problema = @claseProblemaSelect)
+        AND (@tipoProblemaSelect = 0 OR tp.Id_Tipo_Problema = @tipoProblemaSelect)
+        AND (@selectDepto IS NULL OR d.A001ID = @selectDepto)
+        AND (@selectCiudad IS NULL OR c.A002ID = @selectCiudad)
+        AND (@Estado_del_caso = 0 OR r.Id_estado = @Estado_del_caso)
+    ORDER BY r.Fecha_reporte DESC;
+END;
+GO
+```
+
+```sql Sp_consulta_reportes_unicos
+CREATE PROCEDURE Sp_consulta_reportes_unicos
+    @IdCaso INT,
+    @IdReporte INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        r.Id_reporte,
+        r.Id_caso,
+        r.Direccion,
+        r.Descripcion,
+        r.Fecha_reporte,
+        r.Latitud,
+        r.Longitud,
+        r.Geohash,
+        tp.Nombre AS TipoProblema,
+        c.A002DESCRIPCION AS Ciudad,
+        e.Descripcion AS Estado,
+        u.Nombre + ' ' + u.Apellido AS Reportante,
+        u.Correo AS EmailReportante
+    FROM Reportes r
+    INNER JOIN Tipo_Problema tp ON r.Id_tipo_problema = tp.Id_Tipo_Problema
+    INNER JOIN CAT002_CIUDADES c ON r.Id_ciudad = c.A002ID
+    INNER JOIN Estado_caso e ON r.Id_estado = e.Id_estado_caso
+    INNER JOIN Usuarios u ON r.Id_usuario = u.Id_usuario
+    WHERE r.Id_caso = @IdCaso AND r.Id_reporte = @IdReporte;
+END;
+GO
+```
+
+```sql Sp_obtener_fotos_reporte
+CREATE PROCEDURE Sp_obtener_fotos_reporte
+    @IdReporte INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        Id_foto,
+        Id_reporte,
+        Nombre_imagen,
+        Ruta_foto,
+        Fecha_subida
+    FROM Fotos_Reporte
+    WHERE Id_reporte = @IdReporte
+    ORDER BY Fecha_subida;
+END;
+GO
+```
+</CodeGroup>
+
+### Agent Response Procedures
+
+<CodeGroup>
+```sql sp_Guardar_RespuestaAgente
+CREATE PROCEDURE sp_Guardar_RespuestaAgente
+    @Id_caso INT,
+    @id_opcion_caso INT,
+    @Descripcion NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        DECLARE @Id_respuesta INT;
+        
+        -- Insert agent response
+        INSERT INTO Respuestas_Agente (
+            Id_caso, Id_opcion_respuesta, Descripcion, Fecha_respuesta
+        )
+        VALUES (
+            @Id_caso, @id_opcion_caso, @Descripcion, GETDATE()
+        );
+        
+        SET @Id_respuesta = SCOPE_IDENTITY();
+        
+        -- Update case status if needed
+        UPDATE Reportes 
+        SET Id_estado = @id_opcion_caso
+        WHERE Id_caso = @Id_caso;
+        
+        SELECT 
+            1 AS Resultado, 
+            'Respuesta guardada exitosamente' AS Mensaje,
+            @Id_respuesta AS Id_respuesta;
+        
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+            
+        SELECT 0 AS Resultado, ERROR_MESSAGE() AS Mensaje;
+    END CATCH
+END;
+GO
+```
+
+```sql sp_guardar_foto_respuesta_agente
+CREATE PROCEDURE sp_guardar_foto_respuesta_agente
+    @Id_resp_agente INT,
+    @Nombre_imagen NVARCHAR(255),
+    @Ruta_foto NVARCHAR(500)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        INSERT INTO Fotos_Respuesta_Agente (
+            Id_respuesta, Nombre_imagen, Ruta_foto, Fecha_subida
+        )
+        VALUES (
+            @Id_resp_agente, @Nombre_imagen, @Ruta_foto, GETDATE()
+        );
+        
+        SELECT 1 AS Resultado, 'Foto de respuesta guardada' AS Mensaje;
+    END TRY
+    BEGIN CATCH
+        SELECT 0 AS Resultado, ERROR_MESSAGE() AS Mensaje;
+    END CATCH
+END;
+GO
+```
+
+```sql Sp_obtener_respuestas_agente
+CREATE PROCEDURE Sp_obtener_respuestas_agente
+    @IdCaso INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        ra.Id_respuesta,
+        ra.Id_caso,
+        ra.Descripcion,
+        ra.Fecha_respuesta,
+        e.Descripcion AS EstadoRespuesta,
+        a.Nombre + ' ' + a.Apellido AS NombreAgente
+    FROM Respuestas_Agente ra
+    INNER JOIN Estado_caso e ON ra.Id_opcion_respuesta = e.Id_estado_caso
+    LEFT JOIN Usuarios a ON ra.Id_agente = a.Id_usuario
+    WHERE ra.Id_caso = @IdCaso
+    ORDER BY ra.Fecha_respuesta DESC;
+END;
+GO
+```
+
+```sql Sp_obtener_fotos_agente
+CREATE PROCEDURE Sp_obtener_fotos_agente
+    @IdRespAgente INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        Id_foto,
+        Id_respuesta,
+        Nombre_imagen,
+        Ruta_foto,
+        Fecha_subida
+    FROM Fotos_Respuesta_Agente
+    WHERE Id_respuesta = @IdRespAgente
+    ORDER BY Fecha_subida;
+END;
+GO
+```
+
+```sql Sp_obtener_adjuntos_agente
+CREATE PROCEDURE Sp_obtener_adjuntos_agente
+    @IdRespAgente INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        Id_adjunto,
+        Id_respuesta,
+        Nombre_imagen AS Nombre_archivo,
+        Ruta_foto AS Ruta_archivo,
+        Fecha_subida
+    FROM Adjuntos_Respuesta_Agente
+    WHERE Id_respuesta = @IdRespAgente
+    ORDER BY Fecha_subida;
+END;
+GO
+```
+</CodeGroup>
+
+<Note>
+  The stored procedure names and parameters are based on the actual usage found in `QuejasCiudadanasContext.cs`. You may need to adjust table names and relationships based on your complete schema.
+</Note>
+
+## Apply Schema with Entity Framework
+
+Alternatively, you can use Entity Framework Core migrations to create the database schema:
+
+<Steps>
+  <Step title="Create Initial Migration">
+    ```bash
+    dotnet ef migrations add InitialCreate
+    ```
+  </Step>
+
+  <Step title="Update Database">
+    ```bash
+    dotnet ef database update
+    ```
+
+    This will create all tables defined in the `DbContext`.
+  </Step>
+
+  <Step title="Verify Tables">
+    ```sql
+    USE quejas_ciudadana;
+    SELECT TABLE_NAME 
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_TYPE = 'BASE TABLE'
+    ORDER BY TABLE_NAME;
+    ```
+  </Step>
+</Steps>
+
+<Warning>
+  Entity Framework migrations will create tables but **not** stored procedures. You must create stored procedures manually using the SQL scripts above.
+</Warning>
+
+## Verify Database Setup
+
+<Steps>
+  <Step title="Check Tables">
+    ```sql
+    -- Verify all tables exist
+    SELECT COUNT(*) AS TableCount
+    FROM INFORMATION_SCHEMA.TABLES 
+    WHERE TABLE_TYPE = 'BASE TABLE';
+    ```
+  </Step>
+
+  <Step title="Check Stored Procedures">
+    ```sql
+    -- List all stored procedures
+    SELECT name 
+    FROM sys.procedures
+    WHERE type = 'P'
+    ORDER BY name;
+    ```
+
+    Expected procedures:
+    - `sp_validar_login`
+    - `sp_registrar_usuario`
+    - `sp_guardar_report_ciudadanos`
+    - `sp_guardar_foto_reporte`
+    - `sp_ConsultaCasosFiltrados`
+    - `Sp_consulta_reportes_unicos`
+    - `Sp_obtener_fotos_reporte`
+    - `sp_Guardar_RespuestaAgente`
+    - `sp_guardar_foto_respuesta_agente`
+    - `sp_guardar_adjunto_respuesta_agente`
+    - `Sp_obtener_respuestas_agente`
+    - `Sp_obtener_fotos_agente`
+    - `Sp_obtener_adjuntos_agente`
+  </Step>
+
+  <Step title="Test Connection from Application">
+    ```bash
+    dotnet run
+    ```
+
+    Check the application logs for successful database connection.
+  </Step>
+</Steps>
+
+## Database Backup
+
+Regularly backup your database:
+
+```sql
+BACKUP DATABASE quejas_ciudadana
+TO DISK = 'C:\Backups\quejas_ciudadana.bak'
+WITH FORMAT, MEDIANAME = 'SQLServerBackups', NAME = 'Full Backup of quejas_ciudadana';
+GO
+```
+
+<Tip>
+  Set up automated backups using SQL Server Agent or your cloud provider's backup features.
+</Tip>
+
+## Performance Optimization
+
+### Indexes
+
+Create indexes on frequently queried columns:
+
+```sql
+-- Index on report lookups
+CREATE INDEX IX_Reportes_Usuario ON Reportes(Id_usuario);
+CREATE INDEX IX_Reportes_Estado ON Reportes(Id_estado);
+CREATE INDEX IX_Reportes_Fecha ON Reportes(Fecha_reporte DESC);
+CREATE INDEX IX_Reportes_Caso ON Reportes(Id_caso);
+
+-- Index on geographic lookups
+CREATE INDEX IX_Ciudades_Depto ON CAT002_CIUDADES(A002CODDEPTO);
+
+-- Index on problem classification
+CREATE INDEX IX_Clase_Problema ON Clase_Problema(Id_Problema);
+CREATE INDEX IX_Tipo_Problema ON Tipo_Problema(Id_Clase_Problema);
+```
+
+### Query Performance
+
+Monitor slow queries:
+
+```sql
+-- Enable query statistics
+SET STATISTICS TIME ON;
+SET STATISTICS IO ON;
+
+-- Test your stored procedures
+EXEC sp_ConsultaCasosFiltrados @problemaSelect = 0, @claseProblemaSelect = 0, 
+     @tipoProblemaSelect = 0, @selectDepto = NULL, @selectCiudad = NULL, 
+     @Estado_del_caso = 0;
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot Create Database">
+    **Error**: `CREATE DATABASE permission denied`
+    
+    **Solution**:
+    - Ensure you're logged in as `sa` or a user with `dbcreator` role
+    - Grant permission: `ALTER SERVER ROLE dbcreator ADD MEMBER [YourUser]`
+  </Accordion>
+
+  <Accordion title="Stored Procedure Fails">
+    **Error**: `Could not find stored procedure 'sp_validar_login'`
+    
+    **Solution**:
+    - Verify you're connected to the correct database: `USE quejas_ciudadana`
+    - Check stored procedure exists: `SELECT * FROM sys.procedures WHERE name = 'sp_validar_login'`
+    - Re-run the CREATE PROCEDURE script
+  </Accordion>
+
+  <Accordion title="Foreign Key Constraint Errors">
+    **Error**: `FOREIGN KEY constraint failed`
+    
+    **Solution**:
+    - Ensure parent tables are created before child tables
+    - Verify referenced data exists before inserting
+    - Check the relationship definitions in the schema
+  </Accordion>
+
+  <Accordion title="Entity Framework Migration Fails">
+    **Error**: `An error occurred while applying migration`
+    
+    **Solution**:
+    ```bash
+    # Remove last migration
+    dotnet ef migrations remove
+    
+    # Drop database and recreate
+    dotnet ef database drop
+    dotnet ef database update
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="code" href="/api/home-controller">
+    Explore the API endpoints and controllers
+  </Card>
+  <Card title="Data Models" icon="diagram-project" href="/models/user-models">
+    Learn about the data models and relationships
+  </Card>
+</CardGroup>

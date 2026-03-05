@@ -1,0 +1,627 @@
+---
+title: 'ReportesController API'
+description: 'Report management and case handling endpoints'
+icon: 'flag'
+---
+
+The `ReportesController` manages all operations related to citizen reports, cases, and agent responses. All endpoints require authentication via the `[VerificaSesion]` attribute.
+
+<Note>
+  All endpoints in this controller require an active user session. Unauthenticated requests will be redirected to the login page.
+</Note>
+
+---
+
+## Report Creation
+
+### GET /Reportes/crear_reporte
+
+Displays the report creation form with necessary catalog data.
+
+<ResponseField name="ViewBag.Problemas" type="List<Problema>">
+  Available problem categories
+</ResponseField>
+
+<ResponseField name="ViewBag.deptos" type="List<CAT001_DEPTOS>">
+  Department (state) catalog
+</ResponseField>
+
+---
+
+### POST /Reportes/GuardarReporte
+
+Creates a new citizen report with up to 6 evidence photos.
+
+<ParamField path="model" type="Reporte_nuevo" required>
+  Report data from form
+  
+  <Expandable title="properties">
+    <ParamField path="Latitud" type="string" required>
+      Geographic latitude coordinate
+    </ParamField>
+    <ParamField path="Longitud" type="string" required>
+      Geographic longitude coordinate
+    </ParamField>
+    <ParamField path="Geohash" type="string" required>
+      Geohash for spatial indexing and case grouping
+    </ParamField>
+    <ParamField path="TipoProblema" type="string" required>
+      Problem type ID
+    </ParamField>
+    <ParamField path="Ciudad" type="string" required>
+      City location code
+    </ParamField>
+    <ParamField path="Direccion" type="string" required>
+      Street address or location description
+    </ParamField>
+    <ParamField path="Descripcion" type="string" required>
+      Detailed description of the problem
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField path="Imagen0-5" type="IFormFile[]" required>
+  Exactly 6 evidence photos (Imagen0 through Imagen5)
+</ParamField>
+
+<ResponseField name="200 OK" type="object">
+  <Expandable title="properties">
+    <ResponseField name="mensaje" type="string">
+      Success message: "Reporte enviado correctamente"
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="400 Bad Request" type="string">
+  Error message if images are missing or report save fails
+</ResponseField>
+
+#### Example Request
+
+```javascript
+const formData = new FormData();
+formData.append('Latitud', '4.6097100');
+formData.append('Longitud', '-74.0817500');
+formData.append('Geohash', '9v6k8h');
+formData.append('TipoProblema', '5');
+formData.append('Ciudad', '11001');
+formData.append('Direccion', 'Calle 72 # 10-51');
+formData.append('Descripcion', 'Hueco grande en la vía');
+
+// Add 6 images
+for (let i = 0; i < 6; i++) {
+  formData.append(`Imagen${i}`, imageFiles[i]);
+}
+
+fetch('/Reportes/GuardarReporte', {
+  method: 'POST',
+  body: formData
+});
+```
+
+#### Workflow
+
+1. Extracts `Id_user` from session
+2. Sets `id_estado` to 1 (new case)
+3. Calls `sp_guardar_report_ciudadanos` stored procedure
+4. Creates directory structure: `/wwwroot/evidencias/{Id_caso}_{Id_reporte}_{Id_user}_{llave}/`
+5. Saves 6 images as `evidencia_1` through `evidencia_6`
+6. Calls `sp_guardar_foto_reporte` for each image
+
+#### File Storage
+
+```
+/wwwroot/evidencias/
+  /{Id_caso}_{Id_reporte}_{Id_user}_{llave}/
+    evidencia_1.jpg
+    evidencia_2.jpg
+    ...
+    evidencia_6.jpg
+```
+
+---
+
+## Catalog Endpoints
+
+### GET /Reportes/GetClasesProblema
+
+Returns problem classes for a specific problem category.
+
+<ParamField query="id" type="int" required>
+  Problem category ID
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  Array of problem classes
+  
+  <Expandable title="structure">
+    <ResponseField name="id_Clase_Problema" type="int">
+      Class identifier
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Class name
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example Response
+
+```json
+[
+  { "id_Clase_Problema": 1, "nombre": "Vías" },
+  { "id_Clase_Problema": 2, "nombre": "Puentes" }
+]
+```
+
+---
+
+### GET /Reportes/GetTiposProblema
+
+Returns problem types for a specific problem class.
+
+<ParamField query="id" type="int" required>
+  Problem class ID
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  Array of problem types
+  
+  <Expandable title="structure">
+    <ResponseField name="id_Tipo_Problema" type="int">
+      Type identifier
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      Type name
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+### GET /Reportes/ObtenerCiudades
+
+Returns cities for a specific department.
+
+<ParamField query="codDepto" type="string" required>
+  Department code (e.g., "11" for Bogotá D.C.)
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  Array of cities
+  
+  <Expandable title="structure">
+    <ResponseField name="A002CODUBICACION" type="string">
+      City location code
+    </ResponseField>
+    <ResponseField name="A002DESCRIPCION" type="string">
+      City name
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Report Query Endpoints
+
+### POST /Reportes/consultar_reportes
+
+Searches and filters cases based on multiple criteria for map display.
+
+<ParamField body="model" type="Filtros_buscar_reportes" required>
+  Filter parameters
+  
+  <Expandable title="properties">
+    <ParamField body="problemaSelect" type="int">
+      Problem category ID (0 for all)
+    </ParamField>
+    <ParamField body="claseProblemaSelect" type="int">
+      Problem class ID (0 for all)
+    </ParamField>
+    <ParamField body="tipoProblemaSelect" type="int">
+      Problem type ID (0 for all)
+    </ParamField>
+    <ParamField body="selectDepto" type="string">
+      Department code ("0000" for all)
+    </ParamField>
+    <ParamField body="selectCiudad" type="string">
+      City code ("0000" for all)
+    </ParamField>
+    <ParamField body="Estado_del_caso" type="int">
+      Case status ID (0 for all)
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  Array of filtered cases
+  
+  <Expandable title="structure">
+    <ResponseField name="id" type="int">
+      Case ID
+    </ResponseField>
+    <ResponseField name="lat" type="decimal">
+      Latitude coordinate
+    </ResponseField>
+    <ResponseField name="lon" type="decimal">
+      Longitude coordinate
+    </ResponseField>
+    <ResponseField name="problema" type="string">
+      Problem category name
+    </ResponseField>
+    <ResponseField name="clase" type="string">
+      Problem class name
+    </ResponseField>
+    <ResponseField name="tipo" type="string">
+      Problem type name
+    </ResponseField>
+    <ResponseField name="departamento" type="string">
+      Department name
+    </ResponseField>
+    <ResponseField name="ciudad" type="string">
+      City name
+    </ResponseField>
+    <ResponseField name="fecha" type="DateTime">
+      Registration date
+    </ResponseField>
+    <ResponseField name="estado" type="int">
+      Case status
+    </ResponseField>
+    <ResponseField name="cantidad" type="int">
+      Number of reports in this case
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example Request
+
+```javascript
+fetch('/Reportes/consultar_reportes', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+  body: new URLSearchParams({
+    problemaSelect: '1',
+    claseProblemaSelect: '0',
+    tipoProblemaSelect: '0',
+    selectDepto: '11',
+    selectCiudad: '0000',
+    Estado_del_caso: '0'
+  })
+});
+```
+
+#### Stored Procedure
+
+Calls `sp_ConsultaCasosFiltrados` with provided filters.
+
+---
+
+### POST /Reportes/consultar_caso_x_report
+
+Retrieves detailed information for all reports in a specific case.
+
+<ParamField body="IdCaso" type="int" required>
+  Case identifier
+</ParamField>
+
+<ParamField body="IdReporte" type="int">
+  Specific report ID (use -1 for all reports in case)
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  <Expandable title="structure">
+    <ResponseField name="info" type="array">
+      Array of report details
+      
+      <Expandable title="report structure">
+        <ResponseField name="id_reporte" type="int">
+          Report ID
+        </ResponseField>
+        <ResponseField name="id_caso" type="int">
+          Case ID
+        </ResponseField>
+        <ResponseField name="titulo" type="string">
+          Report title
+        </ResponseField>
+        <ResponseField name="fecha" type="DateTime">
+          Registration date
+        </ResponseField>
+        <ResponseField name="problema" type="string">
+          Problem category
+        </ResponseField>
+        <ResponseField name="clase" type="string">
+          Problem class
+        </ResponseField>
+        <ResponseField name="tipo" type="string">
+          Problem type
+        </ResponseField>
+        <ResponseField name="departamento" type="string">
+          Department
+        </ResponseField>
+        <ResponseField name="ciudad" type="string">
+          City
+        </ResponseField>
+        <ResponseField name="direccion" type="string">
+          Address
+        </ResponseField>
+        <ResponseField name="estado" type="int">
+          Status
+        </ResponseField>
+        <ResponseField name="cantidadReportes" type="int">
+          Total reports in case
+        </ResponseField>
+        <ResponseField name="tipoDocumento" type="string">
+          Reporter's ID type
+        </ResponseField>
+        <ResponseField name="numeroIdentificacion" type="string">
+          Reporter's ID number
+        </ResponseField>
+        <ResponseField name="nombreReportador" type="string">
+          Reporter's full name
+        </ResponseField>
+        <ResponseField name="descripcion" type="string">
+          Report description
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="fotos" type="array">
+      Array of photo URLs for the first report
+      
+      <Expandable title="photo structure">
+        <ResponseField name="id_reporte" type="string">
+          Photo file path
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Stored Procedures Used
+
+- `Sp_consulta_reportes_unicos` - Retrieves report details
+- `Sp_obtener_fotos_reporte` - Retrieves photo paths
+
+---
+
+### POST /Reportes/lista_reportes_similares
+
+Returns all reports within a case (used for showing similar/related reports).
+
+<ParamField body="IdCaso" type="int" required>
+  Case identifier
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  <Expandable title="structure">
+    <ResponseField name="id" type="int">
+      Always 1
+    </ResponseField>
+    <ResponseField name="nombre" type="string">
+      "Informes relacionados con el caso"
+    </ResponseField>
+    <ResponseField name="proyectos" type="array">
+      Array of related reports (same structure as consultar_caso_x_report)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Agent Response Endpoints
+
+### POST /Reportes/Enviar_Respuest_caso
+
+Allows government agents to respond to cases with text, photos, and PDF attachments.
+
+<ParamField body="id_caso" type="int" required>
+  Case ID being responded to
+</ParamField>
+
+<ParamField body="opcion" type="int" required>
+  Response option/status code
+</ParamField>
+
+<ParamField body="comentario" type="string" required>
+  Agent's response text
+</ParamField>
+
+<ParamField body="fotos" type="IFormFile[]">
+  Optional array of response photos (JPG, JPEG, PNG only)
+</ParamField>
+
+<ParamField body="archivoPdf" type="IFormFile">
+  Optional PDF attachment
+</ParamField>
+
+<ResponseField name="200 OK" type="object">
+  <Expandable title="properties">
+    <ResponseField name="mensaje" type="string">
+      "Formulario enviado correctamente."
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="400 Bad Request" type="object">
+  Error details if validation fails
+</ResponseField>
+
+<ResponseField name="500 Internal Server Error" type="object">
+  <Expandable title="properties">
+    <ResponseField name="mensaje" type="string">
+      Error description
+    </ResponseField>
+    <ResponseField name="error" type="string">
+      Exception message
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### File Storage Structure
+
+```
+/wwwroot/evidencias_respuesta_caso/
+  /{id_caso}/
+    /{id_respuesta_agente}/
+      /adjunto_foto/
+        foto_1.jpg
+        foto_2.png
+        ...
+      /adjunto_pdf/
+        pdf_1.pdf
+```
+
+#### Workflow
+
+1. Calls `sp_Guardar_RespuestaAgente` to create response record
+2. Creates directory structure with `id_respuesta_agente`
+3. Saves photos to `adjunto_foto/` directory
+4. Saves PDF to `adjunto_pdf/` directory
+5. Calls `sp_guardar_foto_respuesta_agente` for each photo
+6. Calls `sp_guardar_adjunto_respuesta_agente` for PDF
+
+#### Example Request
+
+```javascript
+const formData = new FormData();
+formData.append('id_caso', '123');
+formData.append('opcion', '2');
+formData.append('comentario', 'Se ha programado la reparación para el próximo lunes.');
+
+// Add photos
+for (let i = 0; i < photoFiles.length; i++) {
+  formData.append('fotos', photoFiles[i]);
+}
+
+// Add PDF
+if (pdfFile) {
+  formData.append('archivoPdf', pdfFile);
+}
+
+fetch('/Reportes/Enviar_Respuest_caso', {
+  method: 'POST',
+  body: formData
+});
+```
+
+---
+
+### POST /Reportes/consultar_respuesta_agentes
+
+Retrieves all agent responses for a specific case.
+
+<ParamField body="IdCaso" type="int" required>
+  Case identifier
+</ParamField>
+
+<ResponseField name="response" type="JsonResult">
+  Array of agent responses
+  
+  <Expandable title="structure">
+    <ResponseField name="id" type="int">
+      Response ID
+    </ResponseField>
+    <ResponseField name="titulo" type="string">
+      Response title (defaults to "Sin título")
+    </ResponseField>
+    <ResponseField name="fecha" type="string">
+      Response date formatted as "dd MMM yyyy"
+    </ResponseField>
+    <ResponseField name="descripcion" type="string">
+      Response text (defaults to "Sin descripción")
+    </ResponseField>
+    <ResponseField name="imagenes" type="array">
+      Array of image objects with `url` property
+    </ResponseField>
+    <ResponseField name="pdfUrl" type="string">
+      PDF file path (empty string if no PDF)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Example Response
+
+```json
+[
+  {
+    "id": 45,
+    "titulo": "Respuesta oficial",
+    "fecha": "15 Ene 2024",
+    "descripcion": "Se ha realizado la reparación solicitada",
+    "imagenes": [
+      { "url": "/evidencias_respuesta_caso/123/45/adjunto_foto/foto_1.jpg" },
+      { "url": "/evidencias_respuesta_caso/123/45/adjunto_foto/foto_2.jpg" }
+    ],
+    "pdfUrl": "/evidencias_respuesta_caso/123/45/adjunto_pdf/pdf_1.pdf"
+  }
+]
+```
+
+#### Stored Procedures Used
+
+- `Sp_obtener_respuestas_agente` - Gets response data
+- `Sp_obtener_fotos_agente` - Gets photo paths for each response
+- `Sp_obtener_adjuntos_agente` - Gets PDF paths for each response
+
+---
+
+## View Endpoints
+
+### GET /Reportes/Index
+
+Displays the main reports dashboard with filters.
+
+<ResponseField name="ViewBag.Problemas" type="List<Problema>">
+  Problem categories for filter
+</ResponseField>
+
+<ResponseField name="ViewBag.deptos" type="List<CAT001_DEPTOS>">
+  Departments for filter
+</ResponseField>
+
+<ResponseField name="ViewBag.estado_caso" type="List<Estado_caso>">
+  Case statuses for filter
+</ResponseField>
+
+---
+
+## Session Management
+
+### GET /Reportes/CerrarSesion
+
+Logs out the current user (duplicate of HomeController endpoint).
+
+<ResponseField name="redirect">
+  Redirects to `/Home/Index`
+</ResponseField>
+
+---
+
+## Error Handling
+
+### GET /Reportes/Error
+
+Displays error page (same as HomeController).
+
+```csharp
+[ResponseCache(Duration = 0, Location = ResponseCacheLocation.None, NoStore = true)]
+```
+
+---
+
+## Security
+
+<Warning>
+  All endpoints in this controller require authentication via `[VerificaSesion]` attribute at the controller level. Ensure this filter properly validates session data.
+</Warning>
+
+<Info>
+  File uploads are validated for:
+  - **Photos**: Only `.jpg`, `.jpeg`, `.png` extensions allowed
+  - **PDFs**: Only `.pdf` extension allowed
+  - File size limits should be configured in server settings
+</Info>
+
+---
+
+## Database Integration
+
+All data operations use Entity Framework Core with stored procedures. See [Stored Procedures Reference](/api/stored-procedures) for complete documentation of database procedures used by this controller.

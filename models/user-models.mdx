@@ -1,0 +1,127 @@
+---
+title: 'User Models'
+description: 'Data models for user authentication, registration, and profile management'
+---
+
+## Overview
+
+User models handle authentication, registration, and user profile information in the Quejas Ciudadanas system. These models manage user sessions, credentials, and demographic data.
+
+## Usuario_Logueado
+
+Represents a logged-in user with complete profile information.
+
+```csharp
+public class Usuario_Logueado
+{
+    [Key]
+    public int Id_user { get; set; }
+    public int Id_tipo_user { get; set; }
+    public string TipoUsuario { get; set; }
+    public string TipoIdentificacion { get; set; }
+    public string Identificacion { get; set; }
+    public string Nombre { get; set; }
+    public string Apellido { get; set; }
+    public string Correo { get; set; }
+    public DateTime FechaNacimiento { get; set; }
+    public string Genero { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_user` | `int` | Primary key - Unique user identifier |
+| `Id_tipo_user` | `int` | User type identifier (citizen, agent, admin) |
+| `TipoUsuario` | `string` | User type description |
+| `TipoIdentificacion` | `string` | Type of identification document |
+| `Identificacion` | `string` | Identification number |
+| `Nombre` | `string` | User's first name |
+| `Apellido` | `string` | User's last name |
+| `Correo` | `string` | Email address |
+| `FechaNacimiento` | `DateTime` | Date of birth |
+| `Genero` | `string` | Gender |
+
+## inicia_secion
+
+Model for user login requests (sent to the API).
+
+```csharp
+public class inicia_secion
+{
+    public string NumeroIdentificacion_login { get; set; }
+    public string Contrasena_login { get; set; }
+    public string Resultado { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `NumeroIdentificacion_login` | `string` | Identification number for login |
+| `Contrasena_login` | `string` | Password |
+| `Resultado` | `string` | Result status |
+
+## inicia_secion_respuesta_registro
+
+Model for login response (received from the API).
+
+```csharp
+public class inicia_secion_respuesta_registro
+{
+    [Key]
+    public string NumeroIdentificacion_login { get; set; }
+    public string Contrasena_login { get; set; }
+    public string Resultado { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `NumeroIdentificacion_login` | `string` | Primary key - Identification number |
+| `Contrasena_login` | `string` | Password (hashed) |
+| `Resultado` | `string` | Result message or status code |
+
+## Registro_usuario
+
+Model for new user registration.
+
+```csharp
+public class Registro_usuario
+{
+    public string nombre_regist { get; set; }
+    public int numero_doc_regist { get; set; }
+    public string tipo_doc_regist { get; set; }
+    public string apellido_regist { get; set; }
+    public string email_regist { get; set; }
+    public string clave_regist { get; set; }
+    public DateTime fech_nacimien_regist { get; set; }
+    public int sexo_regist { get; set; }
+    public int tipo_usuario { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `nombre_regist` | `string` | First name |
+| `numero_doc_regist` | `int` | Identification document number |
+| `tipo_doc_regist` | `string` | Type of identification document (ID from catalog) |
+| `apellido_regist` | `string` | Last name |
+| `email_regist` | `string` | Email address |
+| `clave_regist` | `string` | Password |
+| `fech_nacimien_regist` | `DateTime` | Date of birth |
+| `sexo_regist` | `int` | Gender ID (references Sexo catalog) |
+| `tipo_usuario` | `int` | User type (1=citizen, 2=agent, etc.) |
+
+## Relationships
+
+- `Usuario_Logueado.Id_tipo_user` references user type catalog
+- `Registro_usuario.tipo_doc_regist` references `TipoIdentificacion` catalog
+- `Registro_usuario.sexo_regist` references `Sexo` catalog
+- User models are used throughout the system to identify report creators and responders

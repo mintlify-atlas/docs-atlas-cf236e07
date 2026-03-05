@@ -1,0 +1,383 @@
+---
+title: Responding to Cases
+description: Step-by-step guide for agents to update case status, submit documentation, and communicate progress to citizens
+---
+
+As a government agent, responding to cases is your primary responsibility. This guide walks you through the process of updating case information, uploading evidence, and communicating progress to citizens.
+
+<Note>
+  This feature is only available to users with **Funcionario** (Agent) account type.
+</Note>
+
+## When to Respond to a Case
+
+You should submit a response when:
+
+- ✅ You begin investigating or working on a case (change to "En Proceso")
+- ✅ You complete field work or repairs (update with photos/documentation)
+- ✅ You resolve the issue (change to "Finalizado")
+- ✅ You need to provide progress updates to citizens
+- ✅ You need to document why a case cannot be addressed
+
+## Accessing the Response Form
+
+<Steps>
+  <Step title="Open a case">
+    From the reports dashboard:
+    1. Click on a map marker, or
+    2. Click the ▶️ button in the case table
+    
+    This opens the detailed case information panel.
+  </Step>
+  
+  <Step title="Review case details">
+    Before responding, thoroughly review:
+    - All citizen descriptions
+    - All 6 photos from each report
+    - Related reports grouped in this case
+    - Any previous agent responses
+  </Step>
+  
+  <Step title="Click 'Responder caso'">
+    At the bottom of the case detail panel, click the blue **"Responder caso"** (Respond to case) button.
+    
+    This opens a modal form for submitting your response.
+  </Step>
+</Steps>
+
+## Completing the Response Form
+
+The response form contains several fields that document your actions:
+
+### 1. Status Selection
+
+<Steps>
+  <Step title="Choose the new status">
+    Select from the **"Seleccione una opción"** dropdown:
+    
+    - **En Proceso** - You're beginning work on this case
+    - **Finalizado** - The issue has been resolved
+    
+    <Note>
+      You cannot change a case back to "Pendiente" once you've begun working on it.
+    </Note>
+  </Step>
+</Steps>
+
+<CardGroup cols={2}>
+  <Card title="When to Use 'En Proceso'" icon="spinner">
+    - You've assessed the issue
+    - Work is scheduled or underway
+    - Investigation is ongoing
+    - Waiting for resources/approval
+  </Card>
+  <Card title="When to Use 'Finalizado'" icon="check-circle">
+    - Repairs are complete
+    - Issue is resolved
+    - Final documentation is ready
+    - No further action needed
+  </Card>
+</CardGroup>
+
+### 2. Written Description
+
+<Steps>
+  <Step title="Enter your comment">
+    In the **"Comentario"** (Comment) text area, provide a clear description:
+    
+    **What to include:**
+    - What you found during assessment
+    - Actions you've taken or plan to take
+    - Timeline for completion (if applicable)
+    - Reasons if the issue cannot be addressed
+    - Reference numbers (work orders, contractor info)
+    
+    **Requirements:**
+    - Maximum 250 characters
+    - Required field
+    - Be clear and professional
+    
+    <Tip>
+      Write for the citizen audience. Explain what you're doing in terms they'll understand, avoiding technical jargon when possible.
+    </Tip>
+  </Step>
+</Steps>
+
+**Example Comments:**
+
+<CodeGroup>
+```text Good Example
+"Visita realizada el 15/03. Identificado daño en tubería principal. Programada reparación para el 18/03 con cuadrilla especializada. Obra estimada en 2 días."
+```
+
+```text Another Good Example  
+"Inspección completada. Bache rellenado y pavimento nivelado. Se aplicará capa de sellado en 48 horas una vez cure el material base."
+```
+</CodeGroup>
+
+### 3. Photo Evidence (Optional)
+
+<Steps>
+  <Step title="Upload progress photos">
+    Click **"Subir hasta 3 fotos"** (Upload up to 3 photos) to add visual documentation.
+    
+    **Photo guidelines:**
+    - Up to 3 images maximum
+    - Formats: JPG, JPEG, PNG
+    - Optional but highly recommended
+    
+    **What to photograph:**
+    - The problem site upon arrival
+    - Work in progress
+    - Completed repairs or improvements
+    - Equipment/materials used
+    - Team members on site
+  </Step>
+</Steps>
+
+<Tip>
+  Photos provide transparency and build citizen trust. They show that government resources are being deployed effectively.
+</Tip>
+
+<Warning>
+  The system validates file types. Only JPG, JPEG, and PNG images are accepted. You'll see an error if you try to upload other formats.
+</Warning>
+
+### 4. PDF Documentation (Optional)
+
+<Steps>
+  <Step title="Attach PDF report">
+    Click **"Subir archivo PDF"** (Upload PDF file) to attach official documentation.
+    
+    **Use PDF for:**
+    - Formal inspection reports
+    - Work orders and approvals
+    - Technical assessments
+    - Contractor quotes or invoices
+    - Engineering diagrams
+    - Legal documentation
+    
+    **Requirements:**
+    - One PDF file maximum
+    - Must be PDF format
+    - Optional
+  </Step>
+</Steps>
+
+<Note>
+  PDFs are stored securely and can be downloaded by citizens and other agents viewing the case.
+</Note>
+
+### 5. Submit Response
+
+<Steps>
+  <Step title="Review your response">
+    Before submitting:
+    - ✅ Status is correctly selected
+    - ✅ Comment accurately describes actions
+    - ✅ Photos clearly show relevant work
+    - ✅ PDF is the correct document
+  </Step>
+  
+  <Step title="Click 'Enviar'">
+    Click the green **"Enviar"** (Send) button to submit your response.
+    
+    You can also click **"Cancelar"** (Cancel) to close the form without saving.
+  </Step>
+  
+  <Step title="Wait for confirmation">
+    The system will:
+    - Validate all fields
+    - Upload photos to server
+    - Store PDF in case folder
+    - Save your response to the database
+    - Update the case status
+    
+    You'll see "Caso actualizado" (Case updated) when successful.
+  </Step>
+  
+  <Step title="Page refresh">
+    The page automatically refreshes after 2 seconds to show your new response in the case timeline.
+  </Step>
+</Steps>
+
+## What Happens After Submission
+
+When you submit a response, the system:
+
+1. **Creates a Response Record**
+   - Generates unique `id_respuesta_agente`
+   - Timestamps the response
+   - Associates with your user account
+
+2. **Stores Media Files**
+   - Creates directory structure: `evidencias_respuesta_caso/{case_id}/{response_id}/`
+   - Saves photos to `adjunto_foto/` subfolder
+   - Saves PDF to `adjunto_pdf/` subfolder
+   - Records file paths in database
+
+3. **Updates Case Status**
+   - Changes case status to your selection
+   - Updates the marker color on the map
+   - Adds your response to the timeline
+
+4. **Makes Information Public**
+   - Citizens can view your response
+   - Other agents can see your updates
+   - Photos and PDFs become downloadable
+
+<Warning>
+  Once submitted, responses cannot be edited or deleted through the web interface. Ensure accuracy before clicking "Enviar".
+</Warning>
+
+## Response Workflow Examples
+
+### Example 1: Initial Assessment
+
+<Steps>
+  <Step title="Case comes in">
+    Citizen reports broken streetlight (status: Pendiente)
+  </Step>
+  
+  <Step title="Agent responds">
+    - Status: En Proceso
+    - Comment: "Inspección realizada. Luminaria requiere reemplazo completo. Parte ordenada, instalación programada para próxima semana."
+    - Photos: Image of broken light
+  </Step>
+  
+  <Step title="Follow-up response">
+    - Status: Finalizado
+    - Comment: "Luminaria nueva instalada y probada. Servicio restaurado."
+    - Photos: Before, during installation, after (working light)
+  </Step>
+</Steps>
+
+### Example 2: Complex Issue
+
+<Steps>
+  <Step title="Multiple reports">
+    5 citizens report the same pothole (status: Pendiente)
+  </Step>
+  
+  <Step title="Initial assessment">
+    - Status: En Proceso
+    - Comment: "Bache grande confirmado. Requiere material especial. Aprobación de presupuesto en proceso."
+  </Step>
+  
+  <Step title="Start of work">
+    - Status: En Proceso (still)
+    - Comment: "Presupuesto aprobado. Cuadrilla programada para inicio 20/03."
+  </Step>
+  
+  <Step title="Completion">
+    - Status: Finalizado
+    - Comment: "Reparación completada según especificaciones técnicas. Vía reabierta al tráfico."
+    - Photos: 3 images showing repair process
+    - PDF: Technical report with measurements and materials used
+  </Step>
+</Steps>
+
+## Best Practices
+
+<Tip>
+  **Be Proactive**
+  
+  Don't wait until a case is completely resolved to respond. Update status to "En Proceso" as soon as you begin work, even if completion is weeks away. This shows citizens their report was received and action is being taken.
+</Tip>
+
+<Tip>
+  **Use Photos Effectively**
+  
+  Take photos that clearly show:
+  - The current state ("before")
+  - Your team/equipment on site ("during")
+  - The finished result ("after")
+  
+  Good lighting and clear focus are essential.
+</Tip>
+
+<Tip>
+  **Provide Realistic Timelines**
+  
+  If repairs will take time, say so in your comment. Citizens appreciate honesty more than overpromising.
+</Tip>
+
+<Tip>
+  **Document Everything**
+  
+  Even if the issue can't be fixed (budget constraints, not your department's responsibility, etc.), submit a response explaining why. This closes the loop for citizens.
+</Tip>
+
+<Warning>
+  **Handle Sensitive Information Carefully**
+  
+  When uploading PDFs or writing comments:
+  - Don't include personal information about other citizens
+  - Don't include internal-only government communications
+  - Don't include contractor pricing that shouldn't be public
+  - Do follow your agency's public records and transparency policies
+</Warning>
+
+## Troubleshooting
+
+### Common Issues
+
+<AccordionGroup>
+  <Accordion title="Can't upload photos - 'Solo se permiten imágenes' error">
+    This means you're trying to upload a non-image file. Ensure your files are:
+    - .jpg, .jpeg, or .png format
+    - Actual image files (not renamed documents)
+    - Not corrupted
+  </Accordion>
+  
+  <Accordion title="PDF won't upload - 'El archivo debe ser un PDF' error">
+    The file must be in PDF format:
+    - Not a Word doc, Excel file, or image
+    - Properly saved as .pdf
+    - Not corrupted
+  </Accordion>
+  
+  <Accordion title="'Error al procesar la solicitud' message">
+    This is a server error. Try:
+    - Checking your internet connection
+    - Reducing file sizes (large images/PDFs may timeout)
+    - Waiting a moment and trying again
+    - Contacting IT support if it persists
+  </Accordion>
+  
+  <Accordion title="Can't see the 'Responder caso' button">
+    This button only appears for Funcionario accounts. If you don't see it:
+    - Verify you're logged in with an agent account
+    - Check with your administrator about account permissions
+  </Accordion>
+</AccordionGroup>
+
+## After You Respond
+
+Your response becomes part of the permanent case record:
+
+- **Visible to citizens** - They can see your update, photos, and download PDFs
+- **Visible to other agents** - Helps coordinate if multiple agencies are involved
+- **Tracked in the system** - Creates accountability and documentation trail
+- **Timestamped** - Shows when action was taken
+
+<Note>
+  You can submit multiple responses to the same case as work progresses. Each response is added to the timeline, creating a full history.
+</Note>
+
+## Related Resources
+
+<CardGroup cols={2}>
+  <Card title="Agent Dashboard" icon="gauge" href="/user-guide/agent-dashboard">
+    Overview of agent capabilities and interface
+  </Card>
+  <Card title="Viewing Reports" icon="map" href="/user-guide/viewing-reports">
+    How to find and filter cases on the map
+  </Card>
+  <Card title="Case Status Guide" icon="circle-info" href="/user-guide/viewing-reports#understanding-case-status">
+    Understanding the three case statuses
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/reportes-controller">
+    Technical details of the response endpoint
+  </Card>
+</CardGroup>

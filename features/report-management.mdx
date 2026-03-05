@@ -1,0 +1,352 @@
+---
+title: Report Creation and Management
+description: How citizens create reports and how they are processed in the system
+---
+
+Quejas Ciudadanas enables citizens to submit detailed infrastructure reports with photos, location data, and comprehensive descriptions. This page explains the complete report lifecycle.
+
+## Creating a Report
+
+### Report Form Fields
+
+When creating a report, citizens must provide:
+
+<Steps>
+  <Step title="Problem Classification">
+    Select the problem using a three-tier hierarchy:
+    - **Problema** (Problem): Top-level category
+    - **Clase de Problema** (Problem Class): Sub-category
+    - **Tipo de Problema** (Problem Type): Specific issue type
+    
+    <Info>
+    The class and type dropdowns are dynamically populated based on the previous selection using AJAX calls.
+    </Info>
+  </Step>
+  
+  <Step title="Location Information">
+    Provide the location of the issue:
+    - **Department**: Select from dropdown
+    - **City**: Select from dropdown (filtered by department)
+    - **Map Selection**: Click on the map or use GPS
+    - **Address**: Auto-filled via reverse geocoding (editable)
+    
+    The system automatically captures:
+    - Latitude
+    - Longitude  
+    - Geohash (for clustering)
+  </Step>
+  
+  <Step title="Description">
+    Write a detailed description of the problem in the text area.
+  </Step>
+  
+  <Step title="Photo Evidence">
+    Upload exactly **6 photos** of the issue.
+    
+    <Note>
+    All 6 photo slots must be filled before submission. Supported formats: JPG, JPEG, PNG.
+    </Note>
+  </Step>
+</Steps>
+
+## Dynamic Form Behavior
+
+### Cascading Problem Selection
+
+The problem classification uses cascading dropdowns:
+
+```javascript
+$('#problemaSelect').on('change', function () {
+    var idProblema = $(this).val();
+    $('#claseProblemaSelect').prop('disabled', true).empty().append('<option value="">Cargando...</option>');
+    
+    if (idProblema) {
+        $.getJSON('/Reportes/GetClasesProblema/' + idProblema, function (data) {
+            $('#claseProblemaSelect').empty().append('<option value="" disabled selected>Seleccione una clase de problema</option>');
+            $.each(data, function (i, item) {
+                $('#claseProblemaSelect').append($('<option>', {
+                    value: item.id_Clase_Problema,
+                    text: item.nombre
+                }));
+            });
+            $('#claseProblemaSelect').prop('disabled', false);
+        });
+    }
+});
+```
+
+The server provides the options via the `GetClasesProblema` endpoint:
+
+```csharp
+[HttpGet]
+public JsonResult GetClasesProblema(int id)
+{
+    var clases = _context.Clase_Problema
+        .Where(c => c.Id_Problema == id)
+        .Select(c => new { id_Clase_Problema = c.Id_Clase_Problema, nombre = c.Nombre })
+        .ToList();
+    return Json(clases);
+}
+```
+
+### Location Cascading
+
+Cities are filtered based on the selected department:
+
+```javascript
+$('#selectDepto').change(function () {
+    var codDepto = $(this).val();
+    if (codDepto) {
+        $.get('/Reportes/ObtenerCiudades', { codDepto: codDepto }, function (data) {
+            var ciudadSelect = $('#selectCiudad');
+            ciudadSelect.empty().append('<option value="" disabled selected>Seleccione Ciudad</option>');
+            $.each(data, function (i, ciudad) {
+                ciudadSelect.append('<option value="' + ciudad.a002CODUBICACION + '">' + ciudad.a002DESCRIPCION + '</option>');
+            });
+            ciudadSelect.prop('disabled', false);
+        });
+    }
+});
+```
+
+## Photo Upload System
+
+### Image Preview
+
+As users select photos, they see a preview:
+
+```javascript
+function previewImage(event, index) {
+    const file = event.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = e => {
+            document.getElementById(`preview${index}`).src = e.target.result;
+            document.getElementById(`preview${index}`).style.display = "block";
+            document.getElementById(`icon${index}`).style.display = "none";
+        };
+        reader.readAsDataURL(file);
+    }
+}
+```
+
+### Validation Requirements
+
+Before submission, the system validates:
+
+```javascript
+// Validation of all required fields
+if (lat === "-" || lon === "-" || geohash === "-" || !tipoProblema || !ciudad || direccion === "" || descripcion === "") {
+    mostrarModal("Todos los campos son obligatorios.");
+    return;
+}
+
+// Validation that all 6 images are provided
+for (let i = 0; i < 6; i++) {
+    const fileInput = $("#file" + i)[0];
+    if (!fileInput || fileInput.files.length === 0) {
+        mostrarModal(`Debe cargar las 6 imagenes. La imagen ${i + 1} no ha sido seleccionada.`);
+        return;
+    }
+}
+```
+
+<Tip>
+The 6-photo requirement ensures comprehensive documentation of each infrastructure issue.
+</Tip>
+
+## Report Submission Process
+
+### Client-Side Submission
+
+When the form is submitted, data is sent via AJAX:
+
+```javascript
+var formData = new FormData();
+formData.append("Latitud", lat);
+formData.append("Longitud", lon);
+formData.append("Geohash", geohash);
+formData.append("TipoProblema", tipoProblema);
+formData.append("Ciudad", ciudad);
+formData.append("Direccion", direccion);
+formData.append("Descripcion", descripcion);
+
+for (let i = 0; i < 6; i++) {
+    const file = $("#file" + i)[0].files[0];
+    formData.append("Imagen" + i, file);
+}
+
+$.ajax({
+    url: '/Reportes/GuardarReporte',
+    type: 'POST',
+    data: formData,
+    contentType: false,
+    processData: false,
+    success: function (res) {
+        mostrarModal("Reporte enviado exitosamente.");
+    },
+    error: function (err) {
+        mostrarModal("Error al enviar el reporte.");
+    }
+});
+```
+
+### Server-Side Processing
+
+The server processes the report in multiple steps:
+
+```csharp
+[HttpPost]
+public async Task<IActionResult> GuardarReporte([FromForm]Reporte_nuevo model)
+{
+    // 1. Get user ID from session
+    var session = HttpContext.Session;
+    var idUsuario = session.GetInt32("Id_user");
+    model.Id_user = (int)idUsuario;
+    model.id_estado = 1; // Status: Pending
+    
+    // 2. Save the report to database
+    respuesta_repote_registrado nuevo_reporte = await _context.GuardarReporteCiudadanoAsync(model);
+    
+    if (nuevo_reporte != null)
+    {
+        // 3. Validate that 6 files were received
+        var archivos = new List<IFormFile>();
+        for (int i = 0; i < 6; i++)
+        {
+            var archivo = Request.Form.Files["Imagen" + i];
+            if (archivo == null || archivo.Length == 0)
+                return BadRequest($"Imagen {i + 1} no fue cargada.");
+            archivos.Add(archivo);
+        }
+        
+        // 4. Create unique folder for this report
+        var idReporte = nuevo_reporte.Id_caso + "_" + nuevo_reporte.Id_reporte + "_" + 
+                        nuevo_reporte.Id_user_ciudadano + "_" + nuevo_reporte.llave;
+        string carpeta = Path.Combine("wwwroot/evidencias", idReporte.ToString());
+        Directory.CreateDirectory(carpeta);
+        
+        // 5. Save each photo
+        for (int i = 0; i < archivos.Count; i++)
+        {
+            var nombreArchivo = $"evidencia_{i + 1}{Path.GetExtension(archivos[i].FileName)}";
+            var rutaCompleta = Path.Combine(carpeta, nombreArchivo);
+            
+            using (var stream = new FileStream(rutaCompleta, FileMode.Create))
+            {
+                await archivos[i].CopyToAsync(stream);
+            }
+            
+            // 6. Save photo path to database
+            var rutaRelativa = $"/evidencias/{idReporte}/{nombreArchivo}";
+            Reporte_nuevo_fotos respuesta = new Reporte_nuevo_fotos
+            {
+                Id_reporte = nuevo_reporte.Id_reporte,
+                Nombre_imagen = nombreArchivo,
+                Ruta_foto = rutaRelativa
+            };
+            await _context.GuardarReporteFotosAsync(respuesta);
+        }
+        
+        return Ok(new { mensaje = "Reporte enviado correctamente" });
+    }
+    
+    return BadRequest("Error al guardar el reporte.");
+}
+```
+
+<Info>
+The stored procedure `sp_guardar_report_ciudadanos` handles report creation and automatic case grouping based on geohash proximity.
+</Info>
+
+## Report Data Model
+
+Each report contains:
+
+```csharp
+public class Reporte_nuevo
+{
+    public int Id_user { get; set; }           // User who created the report
+    public int id_estado { get; set; }         // Status (1=Pending, 2=In Progress, 3=Completed)
+    public string Latitud { get; set; }        // Latitude coordinate
+    public string Longitud { get; set; }       // Longitude coordinate
+    public string Geohash { get; set; }        // Encoded location for clustering
+    public string TipoProblema { get; set; }   // Problem type ID
+    public string Ciudad { get; set; }         // City code
+    public string Direccion { get; set; }      // Street address
+    public string Descripcion { get; set; }    // Problem description
+}
+```
+
+## File Organization
+
+Photos are stored in a structured directory system:
+
+```
+wwwroot/
+  evidencias/
+    {Id_caso}_{Id_reporte}_{Id_user}_{llave}/
+      evidencia_1.jpg
+      evidencia_2.jpg
+      evidencia_3.jpg
+      evidencia_4.jpg
+      evidencia_5.jpg
+      evidencia_6.jpg
+```
+
+Each folder is uniquely identified by combining:
+- Case ID
+- Report ID  
+- User ID
+- Unique key (llave)
+
+<Note>
+This structure ensures reports can be easily located and prevents filename conflicts.
+</Note>
+
+## Viewing Reports
+
+Citizens and agents can search and view reports through the search interface:
+
+### Search Filters
+
+Reports can be filtered by:
+- Problem category, class, and type
+- Department and city
+- Case status (Pending, In Progress, Completed)
+
+### Report Display
+
+Each case shows:
+- Number of associated reports
+- Location on interactive map
+- Status indicator
+- Problem classification
+- Registration date
+
+### Detailed View
+
+Clicking on a case reveals:
+- Complete report information
+- Photo carousel with all 6 images
+- Reporter's information
+- List of all related reports in the case
+- Government agent responses (if any)
+
+<Tip>
+The photo carousel allows users to view all evidence images in a slideshow format.
+</Tip>
+
+## Report States
+
+Reports progress through three states:
+
+| State ID | Name | Description |
+|----------|------|-------------|
+| 1 | Pendiente | Newly submitted, awaiting review |
+| 2 | En proceso | Being investigated by government agent |
+| 3 | Finalizado | Resolved and closed |
+
+<Info>
+Only government agents can change report status by responding to cases.
+</Info>

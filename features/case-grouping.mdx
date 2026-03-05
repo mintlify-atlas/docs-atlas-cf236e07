@@ -1,0 +1,313 @@
+---
+title: Automatic Case Grouping
+description: How multiple reports about the same issue are automatically clustered into cases
+---
+
+Quejas Ciudadanas automatically groups related citizen reports into **cases** based on geographic proximity and problem type. This prevents duplicate processing and provides visibility into the scale of each infrastructure issue.
+
+## What is a Case?
+
+A **case** represents a single infrastructure problem that may have been reported by multiple citizens. Instead of processing each report individually, the system:
+
+1. Identifies reports about the same issue
+2. Groups them into a single case
+3. Assigns a unique case ID
+4. Tracks the number of reports per case
+
+<Info>
+When citizens search for reports, they see cases (grouped reports), not individual reports. This provides a clearer picture of widespread issues.
+</Info>
+
+## How Cases are Created
+
+Cases are automatically created when a report is submitted. The grouping logic is handled by the database stored procedure `sp_guardar_report_ciudadanos`.
+
+### Grouping Criteria
+
+Reports are grouped into the same case when they share:
+
+1. **Similar Location**: Matching or very similar geohash values
+2. **Same Problem Type**: Identical problem classification (Tipo de Problema)
+3. **Same City**: Located in the same municipality
+
+<Tip>
+Geohash is the key technology that enables automatic clustering. Reports within approximately 2.4 meters of each other will have the same 9-character geohash.
+</Tip>
+
+## Case Data Structure
+
+Each case contains:
+
+```csharp
+public class CasoFiltrado
+{
+    public int Id_caso { get; set; }           // Unique case ID
+    public string latitud { get; set; }        // Representative latitude
+    public string longitud { get; set; }       // Representative longitude
+    public string Problema { get; set; }       // Problem category name
+    public string Clase_problema { get; set; } // Problem class name
+    public string Tipo_problema { get; set; }  // Problem type name
+    public string Departamento { get; set; }   // Department name
+    public string Ciudad { get; set; }         // City name
+    public DateTime Fecha_registro { get; set; } // First report date
+    public int Estado { get; set; }            // Case status (1=Pending, 2=In Progress, 3=Completed)
+    public int Num_quejas { get; set; }        // Number of reports in this case
+}
+```
+
+## Case Querying
+
+Government agents and citizens can search for cases using various filters:
+
+```csharp
+public async Task<IActionResult> consultar_reportes([FromForm] Filtros_buscar_reportes model)
+{
+    if (string.IsNullOrEmpty(model.selectDepto))
+        model.selectDepto = "0000";
+    
+    if (string.IsNullOrEmpty(model.selectCiudad))
+        model.selectCiudad = "0000";
+    
+    List<CasoFiltrado> consulta_repor = await _context.ObtenerCasosFiltradosAsync(model);
+    
+    var data = consulta_repor.Select(caso => new
+    {
+        id = caso.Id_caso,
+        lat = caso.latitud,
+        lon = caso.longitud,
+        problema = caso.Problema,
+        clase = caso.Clase_problema,
+        tipo = caso.Tipo_problema,
+        departamento = caso.Departamento,
+        ciudad = caso.Ciudad,
+        fecha = caso.Fecha_registro,
+        estado = caso.Estado,
+        cantidad = caso.Num_quejas
+    }).ToList();
+    
+    return Json(data);
+}
+```
+
+### Filter Options
+
+```csharp
+public class Filtros_buscar_reportes
+{
+    public int problemaSelect { get; set; }        // Problem category
+    public int claseProblemaSelect { get; set; }   // Problem class
+    public int tipoProblemaSelect { get; set; }    // Problem type
+    public string selectDepto { get; set; }        // Department code
+    public string selectCiudad { get; set; }       // City code
+    public int Estado_del_caso { get; set; }       // Case status
+}
+```
+
+<Note>
+Filters use "0000" as a wildcard value to indicate "all departments" or "all cities".
+</Note>
+
+## Map Visualization
+
+On the search page, cases are displayed as cluster markers on the map:
+
+```javascript
+function crearMarcador(item) {
+    const icon = L.divIcon({
+        html: `<div style="background:${estadoColores[item.estado]};color:white;padding:4px 6px;border-radius:15px;border:2px solid #fff;font-size:12px;box-shadow:0 0 3px rgba(0,0,0,0.5);transform:translate(-50%,-50%)">${item.cantidad}</div>`,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+    });
+    const marker = L.marker([item.lat, item.lon], { icon }).addTo(map)
+        .bindTooltip(item.titulo)
+        .on('click', () => mostrarAlerta(item.id, 0));
+    marcadores[item.id] = marker;
+}
+```
+
+Each marker displays:
+- **Color**: Indicates case status (Blue=Pending, Yellow=In Progress, Red=Completed)
+- **Number**: Shows count of reports in the case
+- **Tooltip**: Problem description on hover
+- **Click Action**: Opens detailed case view
+
+<Tip>
+The marker color and count provide immediate visual feedback about problem severity and status.
+</Tip>
+
+## Viewing Case Details
+
+When a user clicks on a case marker or table row, they see detailed information including:
+
+### Primary Report Information
+
+The case shows details from one representative report:
+
+```javascript
+function mostrarAlerta(id_caso, id_report) {
+    var formData = new FormData();
+    formData.append("IdCaso", id_caso);
+    formData.append("IdReporte", id_report);
+    
+    $.ajax({
+        url: '/Reportes/consultar_caso_x_report',
+        method: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        success: function (response) {
+            actualizarCarta(response.info[0]);
+            generarCarrusel(response.fotos);
+            mostrarreportes_relacionados(response.info[0].id_caso);
+        }
+    });
+}
+```
+
+### All Related Reports
+
+A list of all reports in the case is displayed:
+
+```csharp
+public async Task<IActionResult> lista_reportes_similares([FromForm] Consultar_reportes_caso model)
+{
+    model.IdReporte = -1; // Get all reports in the case
+    List<ReporteInfraestructura> consulta_repor = await _context.ObtenerCasosreportesAsync(model);
+    
+    var data_info = consulta_repor.Select(caso => new
+    {
+        id_reporte = caso.Id_reporte,
+        id_caso = caso.Id_caso,
+        nombre = caso.Titulo,
+        fecha = caso.Fecha_registro,
+        problema = caso.Problema,
+        clase = caso.Clase_problema,
+        tipo = caso.Tipo_problema,
+        departamento = caso.Departamento,
+        ciudad = caso.Ciudad,
+        direccion = caso.Direccion,
+        estado = caso.Estado,
+        cantidadReportes = caso.Num_quejas,
+        tipoDocumento = caso.Tipo_doc,
+        numeroIdentificacion = caso.Num_identificacion,
+        nombreReportador = caso.Nombre_Completo,
+        descripcion = caso.Descripcion
+    }).ToList();
+    
+    return Json(data_info);
+}
+```
+
+Users can click on any individual report to view its specific photos and details.
+
+## Benefits of Case Grouping
+
+<Steps>
+  <Step title="Eliminates Duplicate Work">
+    Government agents can address multiple reports with a single response instead of handling each one individually.
+  </Step>
+  
+  <Step title="Shows Problem Severity">
+    The count of reports per case immediately indicates which issues are affecting the most citizens.
+  </Step>
+  
+  <Step title="Provides Context">
+    Seeing multiple perspectives on the same issue helps agents understand the full scope of the problem.
+  </Step>
+  
+  <Step title="Improves Efficiency">
+    Resources can be prioritized based on the number of citizens affected.
+  </Step>
+</Steps>
+
+## Case Status Management
+
+Cases progress through three states:
+
+```javascript
+const estadoTextos = { 1: "Pendiente", 2: "En proceso", 3: "Finalizado" };
+const estadoColores = { 1: "#003366", 2: "#FFD700", 3: "#FF0000" };
+```
+
+| Status | Name | Color | Description |
+|--------|------|-------|-------------|
+| 1 | Pendiente | Blue (#003366) | New case awaiting action |
+| 2 | En proceso | Yellow (#FFD700) | Under investigation by agent |
+| 3 | Finalizado | Red (#FF0000) | Resolved and closed |
+
+<Info>
+When a government agent responds to a case, the status can be updated to reflect progress.
+</Info>
+
+## Table Display
+
+Cases are also displayed in a sortable, paginated table:
+
+```javascript
+function renderTabla() {
+    const inicio = (paginaActual - 1) * porPagina;
+    const paginados = [...dataOrdenada()].slice(inicio, inicio + porPagina);
+    
+    const cuerpo = document.getElementById('tablaBody');
+    cuerpo.innerHTML = '';
+    for (const item of paginados) {
+        cuerpo.innerHTML += `
+          <tr>
+            <td>${item.problema}</td>
+            <td>${item.clase}</td>
+            <td>${item.tipo}</td>
+            <td>${item.departamento}</td>
+            <td>${item.ciudad}</td>
+            <td>${item.fecha}</td>
+            <td>${estadoTextos[item.estado]}</td>
+            <td>${item.cantidad}</td>
+            <td><button class="btn btn-sm btn-primary" onclick="centrarEnMapa(${item.id})"><i class="bi bi-geo-alt-fill"></i></button></td>
+            <td><button class="btn btn-sm btn-warning" onclick="mostrarAlerta(${item.id},0)"><i class="bi bi-caret-right-fill"></i></button></td>
+          </tr>`;
+    }
+}
+```
+
+The table shows:
+- Problem classification hierarchy
+- Geographic location
+- Registration date
+- Current status
+- **Number of reports** (the clustering count)
+- Action buttons to view on map or see details
+
+<Tip>
+Users can sort the table by any column and navigate through pages of results (10 per page).
+</Tip>
+
+## Technical Implementation
+
+The case grouping is primarily handled at the database level:
+
+```csharp
+public async Task<List<CasoFiltrado>> ObtenerCasosFiltradosAsync(Filtros_buscar_reportes model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@problemaSelect", model.problemaSelect),
+        new SqlParameter("@claseProblemaSelect", model.claseProblemaSelect),
+        new SqlParameter("@tipoProblemaSelect", model.tipoProblemaSelect),
+        new SqlParameter("@selectDepto", model.selectDepto),
+        new SqlParameter("@selectCiudad", model.selectCiudad),
+        new SqlParameter("@Estado_del_caso", model.Estado_del_caso)
+    };
+    
+    var result = await Consulta_report
+        .FromSqlRaw("EXEC sp_ConsultaCasosFiltrados @problemaSelect, @claseProblemaSelect, @tipoProblemaSelect, @selectDepto, @selectCiudad, @Estado_del_caso", parametros)
+        .ToListAsync();
+    
+    return result;
+}
+```
+
+The stored procedure `sp_ConsultaCasosFiltrados` performs the complex grouping logic, likely using geohash and problem type to identify related reports and aggregate them into cases.
+
+<Note>
+The database-level grouping ensures consistency and performance when dealing with large numbers of reports.
+</Note>

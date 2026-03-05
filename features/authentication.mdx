@@ -1,0 +1,192 @@
+---
+title: Authentication System
+description: Session-based authentication for citizens and government agents
+---
+
+Quejas Ciudadanas uses a session-based authentication system to secure access to the platform and manage user sessions for both citizens and government agents.
+
+## How Authentication Works
+
+The system implements ASP.NET Core session management with a custom authorization filter that validates user sessions before allowing access to protected resources.
+
+### Login Process
+
+<Steps>
+  <Step title="User submits credentials">
+    Users enter their identification number and password on the login page.
+  </Step>
+  
+  <Step title="Server validates credentials">
+    The system calls the stored procedure `sp_validar_login` to verify the credentials against the database.
+    
+    ```csharp
+    public async Task<Usuario_Logueado?> ValidarLoginAsync(inicia_secion model)
+    {
+        var identificacionParam = new SqlParameter("@Identificacion", model.NumeroIdentificacion_login);
+        var claveParam = new SqlParameter("@Clave", model.Contrasena_login);
+        
+        var result = await LoginTemp
+            .FromSqlRaw("EXEC sp_validar_login @Identificacion, @Clave", identificacionParam, claveParam)
+            .ToListAsync();
+        
+        return result.FirstOrDefault();
+    }
+    ```
+  </Step>
+  
+  <Step title="Session is created">
+    Upon successful authentication, the system stores user information in the session:
+    
+    - User ID
+    - User type (citizen or agent)
+    - Personal information (name, email, identification)
+    - Birth date and gender
+    
+    ```csharp
+    HttpContext.Session.SetInt32("Id_user", usuario.Id_user);
+    HttpContext.Session.SetInt32("Id_tipo_user", usuario.Id_tipo_user);
+    HttpContext.Session.SetString("TipoUsuario", usuario.TipoUsuario ?? "");
+    HttpContext.Session.SetString("Nombre", usuario.Nombre ?? "");
+    HttpContext.Session.SetString("Correo", usuario.Correo ?? "");
+    ```
+  </Step>
+  
+  <Step title="User is redirected">
+    Authenticated users are redirected to the reports dashboard (`/Reportes/Index`).
+  </Step>
+</Steps>
+
+## User Registration
+
+New users can self-register as citizens through the registration form. The registration process collects:
+
+- Type of identification document
+- Identification number
+- Full name (first and last name)
+- Email address
+- Date of birth
+- Gender
+- Password
+
+<Info>
+After successful registration, users are automatically logged in and redirected to the dashboard.
+</Info>
+
+### Registration Implementation
+
+The registration process is handled by the `sp_registrar_usuario` stored procedure:
+
+```csharp
+public async Task<inicia_secion_respuesta_registro?> ValidarregistroAsync(Registro_usuario model)
+{
+    var parametros = new[]
+    {
+        new SqlParameter("@Id_tipo_user", model.tipo_usuario),
+        new SqlParameter("@Id_identificacion", model.tipo_doc_regist),
+        new SqlParameter("@Identificacion_reg", model.numero_doc_regist),
+        new SqlParameter("@Nombre", model.nombre_regist),
+        new SqlParameter("@Apellido", model.apellido_regist),
+        new SqlParameter("@Correo", model.email_regist),
+        new SqlParameter("@FechaNacimiento", model.fech_nacimien_regist),
+        new SqlParameter("@Id_genero", model.sexo_regist),
+        new SqlParameter("@CLAVE", model.clave_regist)
+    };
+    
+    var result = await RegisterTemp
+        .FromSqlRaw("EXEC sp_registrar_usuario @Id_tipo_user, @Id_identificacion, @Identificacion_reg, @Nombre, @Apellido, @Correo, @FechaNacimiento, @Id_genero, @CLAVE", parametros)
+        .ToListAsync();
+    
+    return result.FirstOrDefault();
+}
+```
+
+## Session Protection
+
+The system uses the `VerificaSesionAttribute` filter to protect routes that require authentication:
+
+```csharp
+public class VerificaSesionAttribute : ActionFilterAttribute
+{
+    public override void OnActionExecuting(ActionExecutingContext context)
+    {
+        var session = context.HttpContext.Session;
+        var idUsuario = session.GetInt32("Id_user");
+        
+        if (idUsuario == null)
+        {
+            context.Result = new RedirectToActionResult("Index", "Home", null);
+        }
+        
+        base.OnActionExecuting(context);
+    }
+}
+```
+
+### Protected Controllers
+
+The `ReportesController` is decorated with `[VerificaSesion]` to ensure only authenticated users can access report functionality:
+
+```csharp
+[VerificaSesion]
+public class ReportesController : Controller
+{
+    // All actions in this controller require authentication
+}
+```
+
+<Note>
+The `HomeController` is not protected by default to allow anonymous users to access the login and registration pages.
+</Note>
+
+## Session Management
+
+### Active Session Data
+
+While logged in, the session stores:
+
+| Session Key | Description | Type |
+|------------|-------------|------|
+| `Id_user` | User's unique identifier | Integer |
+| `Id_tipo_user` | User type (1=citizen, 2=agent) | Integer |
+| `TipoUsuario` | User type name | String |
+| `TipoIdentificacion` | Type of ID document | String |
+| `Identificacion` | ID number | String |
+| `Nombre` | First name | String |
+| `Apellido` | Last name | String |
+| `Correo` | Email address | String |
+| `Genero` | Gender | String |
+| `FechaNacimiento` | Birth date | String (YYYY-MM-DD) |
+
+### Logout Process
+
+Users can end their session by clicking the logout button, which clears all session data:
+
+```csharp
+public IActionResult CerrarSesion()
+{
+    HttpContext.Session.Clear();
+    return new RedirectToActionResult("Index", "Home", null);
+}
+```
+
+## Security Considerations
+
+<Tip>
+The authentication system uses server-side session storage, which provides better security than client-side token storage.
+</Tip>
+
+- **Password Storage**: Passwords are validated using stored procedures (implementation details in database layer)
+- **Session Timeout**: Sessions expire after a period of inactivity (configured in ASP.NET Core settings)
+- **Automatic Logout**: Expired sessions automatically redirect users to the login page
+- **SQL Injection Protection**: All database queries use parameterized stored procedures
+
+## User Types
+
+The system supports two user types:
+
+1. **Citizens** (`Id_tipo_user = 1`): Can create and view their own reports
+2. **Government Agents** (`Id_tipo_user = 2`): Can view all reports and respond to cases
+
+<Info>
+User type determines the available features and permissions throughout the application.
+</Info>

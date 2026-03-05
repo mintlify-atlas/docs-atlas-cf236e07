@@ -1,0 +1,444 @@
+---
+title: 'Report Models'
+description: 'Data models for creating, filtering, and managing citizen reports and infrastructure cases'
+---
+
+## Overview
+
+Report models handle the creation, querying, and management of citizen reports and infrastructure cases. These models support the full lifecycle of reports from submission to agent responses.
+
+## Reporte_nuevo
+
+Model for creating a new report.
+
+```csharp
+public class Reporte_nuevo
+{
+    public int Id_user { get; set; }
+    public int id_estado { get; set; }
+    public string Latitud { get; set; }
+    public string Longitud { get; set; }
+    public string Geohash { get; set; }
+    public string TipoProblema { get; set; }
+    public string Ciudad { get; set; }
+    public string Direccion { get; set; }
+    public string Descripcion { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_user` | `int` | User ID creating the report |
+| `id_estado` | `int` | Initial state ID |
+| `Latitud` | `string` | Latitude coordinate |
+| `Longitud` | `string` | Longitude coordinate |
+| `Geohash` | `string` | Geohash for location clustering |
+| `TipoProblema` | `string` | Problem type identifier |
+| `Ciudad` | `string` | City name |
+| `Direccion` | `string` | Street address |
+| `Descripcion` | `string` | Problem description |
+
+## Reporte_nuevo_fotos
+
+Model for uploading photos with a new report.
+
+```csharp
+public class Reporte_nuevo_fotos
+{
+    public int Id_reporte { get; set; }
+    public string Nombre_imagen { get; set; }
+    public string Ruta_foto { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_reporte` | `int` | Report ID the photo belongs to |
+| `Nombre_imagen` | `string` | Image filename |
+| `Ruta_foto` | `string` | File path to stored photo |
+
+## respuesta_repote_registrado
+
+Response model after successfully registering a report.
+
+```csharp
+public class respuesta_repote_registrado
+{
+    [Key]
+    public int Id_reporte { get; set; }
+    public string llave { get; set; }
+    public int Id_caso { get; set; }
+    public int Id_user_ciudadano { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_reporte` | `int` | Primary key - Unique report identifier |
+| `llave` | `string` | Unique key/token for the report |
+| `Id_caso` | `int` | Associated case ID (if grouped with other reports) |
+| `Id_user_ciudadano` | `int` | Citizen user ID who created the report |
+
+## respuesta_repote_fotos
+
+Response model for photo upload operations.
+
+```csharp
+public class respuesta_repote_fotos
+{
+    [Key]
+    public int ErrorNumber { get; set; }
+    public string ErrorMessage { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `ErrorNumber` | `int` | Primary key - Error code (0 = success) |
+| `ErrorMessage` | `string` | Error or success message |
+
+## CasoFiltrado
+
+Represents a filtered case with summary information.
+
+```csharp
+public class CasoFiltrado
+{
+    [Key]
+    public int Id_caso { get; set; }
+    public string latitud { get; set; }
+    public string longitud { get; set; }
+    public string Problema { get; set; }
+    public string Clase_problema { get; set; }
+    public string Tipo_problema { get; set; }
+    public string Departamento { get; set; }
+    public string Ciudad { get; set; }
+    public DateTime Fecha_registro { get; set; }
+    public int Estado { get; set; }
+    public int Num_quejas { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_caso` | `int` | Primary key - Case identifier |
+| `latitud` | `string` | Latitude coordinate |
+| `longitud` | `string` | Longitude coordinate |
+| `Problema` | `string` | Problem category name |
+| `Clase_problema` | `string` | Problem class name |
+| `Tipo_problema` | `string` | Problem type name |
+| `Departamento` | `string` | Department (state) name |
+| `Ciudad` | `string` | City name |
+| `Fecha_registro` | `DateTime` | Registration date |
+| `Estado` | `int` | Case status ID |
+| `Num_quejas` | `int` | Number of reports/complaints in this case |
+
+## ReporteInfraestructura
+
+Detailed infrastructure report information.
+
+```csharp
+public class ReporteInfraestructura
+{
+    [Key]
+    public int Id_caso { get; set; }
+    public int Id_reporte { get; set; }
+    public string Titulo { get; set; }
+    public string Problema { get; set; }
+    public string Clase_problema { get; set; }
+    public string Tipo_problema { get; set; }
+    public string Departamento { get; set; }
+    public string Ciudad { get; set; }
+    public string Direccion { get; set; }
+    public DateTime Fecha_registro { get; set; }
+    public int Estado { get; set; }
+    public int Num_quejas { get; set; }
+    public string Tipo_doc { get; set; }
+    public string Num_identificacion { get; set; }
+    public string Nombre_Completo { get; set; }
+    public string Descripcion { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Id_caso` | `int` | Primary key - Case ID |
+| `Id_reporte` | `int` | Report ID |
+| `Titulo` | `string` | Report title |
+| `Problema` | `string` | Problem category |
+| `Clase_problema` | `string` | Problem class |
+| `Tipo_problema` | `string` | Specific problem type |
+| `Departamento` | `string` | Department name |
+| `Ciudad` | `string` | City name |
+| `Direccion` | `string` | Street address |
+| `Fecha_registro` | `DateTime` | Registration date |
+| `Estado` | `int` | Status ID |
+| `Num_quejas` | `int` | Number of complaints |
+| `Tipo_doc` | `string` | Reporter's document type |
+| `Num_identificacion` | `string` | Reporter's ID number |
+| `Nombre_Completo` | `string` | Reporter's full name |
+| `Descripcion` | `string` | Detailed description |
+
+## ReporteInfraestructura_fotos
+
+Photo associated with an infrastructure report.
+
+```csharp
+public class ReporteInfraestructura_fotos
+{
+    [Key]
+    public string Ruta_foto { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `Ruta_foto` | `string` | Primary key - File path to photo |
+
+## Filtros_buscar_reportes
+
+Filter criteria for searching reports.
+
+```csharp
+public class Filtros_buscar_reportes
+{
+    public int problemaSelect { get; set; }
+    public int claseProblemaSelect { get; set; }
+    public int tipoProblemaSelect { get; set; }
+    public string selectDepto { get; set; }
+    public string selectCiudad { get; set; }
+    public int Estado_del_caso { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `problemaSelect` | `int` | Problem category filter |
+| `claseProblemaSelect` | `int` | Problem class filter |
+| `tipoProblemaSelect` | `int` | Problem type filter |
+| `selectDepto` | `string` | Department filter |
+| `selectCiudad` | `string` | City filter |
+| `Estado_del_caso` | `int` | Case status filter |
+
+## Consultar_reportes_caso
+
+Model for querying reports by case.
+
+```csharp
+public class Consultar_reportes_caso
+{
+    public int IdCaso { get; set; }
+    public int IdReporte { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `IdCaso` | `int` | Case ID to query |
+| `IdReporte` | `int` | Specific report ID |
+
+## Consultar_reportes_caso_fotos
+
+Model for querying photos by report.
+
+```csharp
+public class Consultar_reportes_caso_fotos
+{
+    public int IdReporte { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `IdReporte` | `int` | Report ID to get photos for |
+
+## Agent Response Models
+
+### FormularioModel_respuesta_caso
+
+Form model for agent responses to cases.
+
+```csharp
+public class FormularioModel_respuesta_caso
+{
+    public int id_caso { get; set; }
+    public int opcion { get; set; }
+    public string comentario { get; set; }
+    public List<IFormFile> fotos { get; set; } = new();
+    public IFormFile archivoPdf { get; set; }
+}
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `id_caso` | `int` | Case ID being responded to |
+| `opcion` | `int` | Response option/action type |
+| `comentario` | `string` | Agent's comment |
+| `fotos` | `List<IFormFile>` | Uploaded photos |
+| `archivoPdf` | `IFormFile` | Uploaded PDF document |
+
+### respuesta_repote_registrado_agente
+
+```csharp
+public class respuesta_repote_registrado_agente
+{
+    [Key]
+    public int id_respuesta_agente { get; set; }
+}
+```
+
+Response after agent creates a response.
+
+### respuesta_repote_fotos_agente
+
+```csharp
+public class respuesta_repote_fotos_agente
+{
+    [Key]
+    public int ErrorNumber { get; set; }
+    public string ErrorMessage { get; set; }
+}
+```
+
+Response for agent photo uploads.
+
+### respuesta_repote_adjunto_agente
+
+```csharp
+public class respuesta_repote_adjunto_agente
+{
+    [Key]
+    public int ErrorNumber { get; set; }
+    public string ErrorMessage { get; set; }
+}
+```
+
+Response for agent attachment uploads.
+
+### respuesta_agente_recibe
+
+```csharp
+public class respuesta_agente_recibe
+{
+    [Key]
+    public int Id_resp_agente { get; set; }
+    public string Titulo { get; set; }
+    public string Descripcion { get; set; }
+    public DateTime Fecha_registro { get; set; }
+}
+```
+
+Agent response data received from API.
+
+### Reporte_nuevo_fotos_adjente
+
+```csharp
+public class Reporte_nuevo_fotos_adjente
+{
+    public int Id_resp_agente { get; set; }
+    public string Nombre_imagen { get; set; }
+    public string Ruta_foto { get; set; }
+}
+```
+
+Photos for agent responses.
+
+### Reporte_nuevo_adjunto_adjente
+
+```csharp
+public class Reporte_nuevo_adjunto_adjente
+{
+    public int Id_resp_agente { get; set; }
+    public string Nombre_imagen { get; set; }
+    public string Ruta_foto { get; set; }
+}
+```
+
+Attachments for agent responses.
+
+### ReporteInfraestructura_fotos_agente
+
+```csharp
+public class ReporteInfraestructura_fotos_agente
+{
+    [Key]
+    public string Ruta_foto { get; set; }
+}
+```
+
+Agent response photos for infrastructure reports.
+
+### ReporteInfraestructura_fotos_adjuntos
+
+```csharp
+public class ReporteInfraestructura_fotos_adjuntos
+{
+    [Key]
+    public string Ruta_adjunto { get; set; }
+}
+```
+
+Agent response attachments for infrastructure reports.
+
+### Respuestas_agente
+
+```csharp
+public class Respuestas_agente
+{
+    public int IdCaso { get; set; }
+}
+```
+
+Query model for agent responses by case.
+
+### Respuestas_agente_fotos
+
+```csharp
+public class Respuestas_agente_fotos
+{
+    public int IdRespAgente { get; set; }
+}
+```
+
+Query model for agent response photos.
+
+### Respuestas_agente_adjuntos
+
+```csharp
+public class Respuestas_agente_adjuntos
+{
+    public int IdRespAgente { get; set; }
+}
+```
+
+Query model for agent response attachments.
+
+## Relationships
+
+- Reports are grouped into cases based on geohash proximity
+- `Reporte_nuevo.Id_user` references `Usuario_Logueado.Id_user`
+- `Reporte_nuevo.TipoProblema` references `Tipo_Problema` catalog
+- `Reporte_nuevo_fotos.Id_reporte` references report ID
+- Case filters reference catalog models for problems, locations, and states

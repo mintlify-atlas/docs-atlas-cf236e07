@@ -1,0 +1,428 @@
+---
+title: "Features"
+description: "Comprehensive overview of Quejas Ciudadanas platform capabilities for citizen reporting and government response management"
+---
+
+## Overview
+
+Quejas Ciudadanas is a comprehensive citizen complaint management platform that enables citizens to report infrastructure issues while providing government agents with powerful tools to track, manage, and respond to cases efficiently.
+
+<CardGroup cols={2}>
+  <Card title="Citizen Portal" icon="user" iconType="solid" color="#2563eb">
+    Report issues with geolocation, photos, and detailed categorization
+  </Card>
+  <Card title="Agent Dashboard" icon="shield" iconType="solid" color="#60a5fa">
+    Manage cases, respond to citizens, and track resolution progress
+  </Card>
+  <Card title="Smart Grouping" icon="layer-group" iconType="solid" color="#1e40af">
+    Automatically groups related reports into cases by location and type
+  </Card>
+  <Card title="Real-time Maps" icon="map" iconType="solid" color="#2563eb">
+    Interactive OpenStreetMap integration with geohash clustering
+  </Card>
+</CardGroup>
+
+---
+
+## Core Features
+
+### User Authentication & Session Management
+
+Secure authentication system with session-based access control for both citizens and government agents.
+
+<CodeGroup>
+```csharp Program.cs:14-19
+builder.Services.AddSession(options =>
+{
+    options.IdleTimeout = TimeSpan.FromMinutes(30);
+    options.Cookie.HttpOnly = true;
+    options.Cookie.IsEssential = true;
+});
+```
+
+```csharp HomeController.cs
+public async Task<IActionResult> inicio_secion([FromForm] Inicio_secion model)
+{
+    inicio_secion_recibida recibe = await _context.InicioSesionAsync(model);
+    if (recibe != null)
+    {
+        HttpContext.Session.SetInt32("Id_user", recibe.Id_usuario);
+        HttpContext.Session.SetString("nombre", recibe.Nombre);
+        return new RedirectToActionResult("Index", "Reportes", null);
+    }
+    return View("Index");
+}
+```
+</CodeGroup>
+
+<Note>
+  Sessions automatically expire after 30 minutes of inactivity. Users must log in again to continue working.
+</Note>
+
+---
+
+### Geolocation-Based Reporting
+
+Citizens can pinpoint exact locations using interactive maps with automatic address lookup via OpenStreetMap's Nominatim service.
+
+**Key Capabilities:**
+- Click-to-place markers on interactive map
+- Automatic GPS location detection with "Use my location" button
+- Geohash encoding for efficient spatial indexing
+- Reverse geocoding for address generation
+
+<CodeGroup>
+```javascript crear_reportes.js:21-44
+const map = L.map('map').setView([4.60971, -74.08175], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+let marker = null;
+function setMarker(lat, lon) {
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lon]).addTo(map);
+    updateData(lat, lon);
+}
+
+function updateData(lat, lon) {
+    document.getElementById("lat").textContent = lat.toFixed(6);
+    document.getElementById("lon").textContent = lon.toFixed(6);
+    document.getElementById("geohash").textContent = encodeGeohash(lat, lon);
+    fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`)
+        .then(res => res.json())
+        .then(data => {
+            const direccion = data.display_name || "-";
+            document.getElementById("direccionInput").value = direccion;
+        });
+}
+```
+
+```javascript crear_reportes.js:48-56
+function ubicarme() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(pos => {
+            const lat = pos.coords.latitude, lon = pos.coords.longitude;
+            map.setView([lat, lon], 15);
+            setMarker(lat, lon);
+        });
+    } else alert("Tu navegador no soporta geolocalización");
+}
+```
+</CodeGroup>
+
+<Tip>
+  Geohash precision is set to 9 characters, providing location accuracy within approximately 5 meters.
+</Tip>
+
+---
+
+### Multi-Level Problem Categorization
+
+Three-tier hierarchical categorization system for precise issue classification:
+
+<Steps>
+  <Step title="Problem Type">
+    Top-level category (e.g., Infrastructure, Utilities, Public Safety)
+  </Step>
+  <Step title="Problem Class">
+    Sub-category within the problem type (e.g., Roads, Lighting, Drainage)
+  </Step>
+  <Step title="Problem Subtype">
+    Specific issue type (e.g., Potholes, Broken Streetlight, Blocked Drain)
+  </Step>
+</Steps>
+
+```javascript crear_reportes.js:74-91
+$('#problemaSelect').on('change', function () {
+    var idProblema = $(this).val();
+    $('#claseProblemaSelect').prop('disabled', true).empty().append('<option value="">Cargando...</option>');
+    $('#tipoProblemaSelect').prop('disabled', true).empty().append('<option value="">Cargando..</option>');
+
+    if (idProblema) {
+        $.getJSON('/Reportes/GetClasesProblema/' + idProblema, function (data) {
+            $('#claseProblemaSelect').empty().append('<option value="" disabled selected>Seleccione una clase de problema</option>');
+            $.each(data, function (i, item) {
+                $('#claseProblemaSelect').append($('<option>', {
+                    value: item.id_Clase_Problema,
+                    text: item.nombre
+                }));
+            });
+            $('#claseProblemaSelect').prop('disabled', false);
+        });
+    }
+});
+```
+
+---
+
+### Photo Evidence Upload System
+
+**Required: 6 photos per report** to ensure comprehensive documentation of issues.
+
+<Info>
+  All 6 photo slots must be filled before submission. This requirement ensures adequate visual evidence for case assessment.
+</Info>
+
+```javascript crear_reportes.js:147-153
+for (let i = 0; i < 6; i++) {
+    const fileInput = $("#file" + i)[0];
+    if (!fileInput || fileInput.files.length === 0) {
+        mostrarModal(`Debe cargar las 6 imagenes. La imagen ${i + 1} no ha sido seleccionada.`);
+        return;
+    }
+}
+```
+
+**Backend Processing:**
+
+```csharp ReportesController.cs:84-122
+var archivos = new List<IFormFile>();
+for (int i = 0; i < 6; i++)
+{
+    var archivo = Request.Form.Files["Imagen" + i];
+    if (archivo == null || archivo.Length == 0)
+        return BadRequest($"Imagen {i + 1} no fue cargada.");
+    archivos.Add(archivo);
+}
+
+var idReporte = nuevo_reporte.Id_caso+"_"+ nuevo_reporte.Id_reporte+"_"+ nuevo_reporte.Id_user_ciudadano+"_"+ nuevo_reporte.llave;
+string carpeta = Path.Combine("wwwroot/evidencias", idReporte.ToString());
+Directory.CreateDirectory(carpeta);
+
+for (int i = 0; i < archivos.Count; i++)
+{
+    var nombreArchivo = $"evidencia_{i + 1}{Path.GetExtension(archivos[i].FileName)}";
+    var rutaCompleta = Path.Combine(carpeta, nombreArchivo);
+    using (var stream = new FileStream(rutaCompleta, FileMode.Create))
+    {
+        await archivos[i].CopyToAsync(stream);
+    }
+    var rutaRelativa = $"/evidencias/{idReporte}/{nombreArchivo}";
+    // Save to database...
+}
+```
+
+---
+
+### Intelligent Case Grouping
+
+The system automatically clusters related reports into cases based on:
+- Geographic proximity (geohash clustering)
+- Problem type, class, and subtype matching
+- Department and city location
+
+```csharp ReportesController.cs:158-183
+public async Task<IActionResult> consultar_reportes([FromForm] Filtros_buscar_reportes model)
+{
+    if (string.IsNullOrEmpty(model.selectDepto))
+        model.selectDepto = "0000";
+    if (string.IsNullOrEmpty(model.selectCiudad))
+        model.selectCiudad = "0000";
+
+    List<CasoFiltrado> consulta_repor = await _context.ObtenerCasosFiltradosAsync(model);
+
+    var data = consulta_repor.Select(caso => new
+    {
+        id=caso.Id_caso,
+        lat=caso.latitud,
+        lon=caso.longitud,
+        problema= caso.Problema,
+        clase=caso.Clase_problema,
+        tipo=caso.Tipo_problema,
+        departamento=caso.Departamento,
+        ciudad=caso.Ciudad,
+        fecha =caso.Fecha_registro,
+        estado = caso.Estado,
+        cantidad =caso.Num_quejas
+    }).ToList();
+
+    return Json(data);
+}
+```
+
+<Warning>
+  Cases are grouped server-side via stored procedures. Changes to grouping logic require database updates.
+</Warning>
+
+---
+
+### Interactive Map Visualization
+
+Real-time map with color-coded markers showing case status and quantity.
+
+**Status Colors:**
+- <span style={{color: '#003366'}}>**Blue (#003366)**</span> - Pending
+- <span style={{color: '#FFD700'}}>**Yellow (#FFD700)**</span> - In Progress  
+- <span style={{color: '#FF0000'}}>**Red (#FF0000)**</span> - Completed
+
+```javascript buscar_reportes.js:118-130
+function crearMarcador(item) {
+    const icon = L.divIcon({
+        html: `<div style="background:${estadoColores[item.estado]};color:white;padding:4px 6px;border-radius:15px;border:2px solid #fff;font-size:12px;box-shadow:0 0 3px rgba(0,0,0,0.5);transform:translate(-50%,-50%)">${item.cantidad}</div>`,
+        className: '',
+        iconSize: [30, 30],
+        iconAnchor: [15, 15]
+    });
+    const marker = L.marker([item.lat, item.lon], { icon }).addTo(map)
+        .bindTooltip(item.titulo).on('click', () => mostrarAlerta(item.id,0));
+    marcadores[item.id] = marker;
+
+    if (id_marcador != "") { centrarEnMapa(id_marcador); }
+}
+```
+
+---
+
+### Advanced Filtering System
+
+Multi-criteria filtering for case discovery:
+
+<CardGroup cols={3}>
+  <Card title="Category Filters" icon="filter">
+    Problem, Class, Type
+  </Card>
+  <Card title="Location Filters" icon="location-dot">
+    Department, City
+  </Card>
+  <Card title="Status Filter" icon="circle-check">
+    Pending, In Progress, Completed
+  </Card>
+</CardGroup>
+
+```javascript buscar_reportes.js:76-95
+const problemaSelect = $("#problemaSelect").val();
+const claseProblemaSelect = $("#claseProblemaSelect").val();
+const tipoProblemaSelect = $("#tipoProblemaSelect").val();
+const selectDepto = limpiarValor($("#selectDepto").val());
+const selectCiudad = limpiarValor($("#selectCiudad").val());
+const Estado_del_caso = $("#Estado_del_caso").val();
+
+var formData = new FormData();
+formData.append("problemaSelect", problemaSelect);
+formData.append("claseProblemaSelect", claseProblemaSelect);
+formData.append("tipoProblemaSelect", tipoProblemaSelect);
+formData.append("selectDepto", selectDepto);
+formData.append("selectCiudad", selectCiudad);
+formData.append("Estado_del_caso", Estado_del_caso);
+```
+
+---
+
+### Agent Response System
+
+Government agents can respond to cases with:
+- Status updates (Pending → In Progress → Completed)
+- Text descriptions (max 250 characters)
+- Up to 3 photo attachments
+- One PDF document attachment
+
+```csharp ReportesController.cs:271-392
+[HttpPost]
+public async Task<IActionResult> Enviar_Respuest_caso([FromForm] FormularioModel_respuesta_caso modelo)
+{
+    respuesta_repote_registrado_agente nuevo_reporte = await _context.AnsycRegistrar_respuesta_agente(modelo);
+    
+    var basePath = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", 
+        "evidencias_respuesta_caso", modelo.id_caso.ToString(), 
+        nuevo_reporte.id_respuesta_agente.ToString());
+    
+    if (!Directory.Exists(basePath))
+        Directory.CreateDirectory(basePath);
+    
+    // Process photos (up to 3)
+    if (modelo.fotos.Any())
+    {
+        var fotosPath = Path.Combine(basePath, "adjunto_foto");
+        Directory.CreateDirectory(fotosPath);
+        // Save photos...
+    }
+    
+    // Process PDF
+    if (modelo.archivoPdf != null && modelo.archivoPdf.Length > 0)
+    {
+        var pdfPath = Path.Combine(basePath, "adjunto_pdf");
+        Directory.CreateDirectory(pdfPath);
+        // Save PDF...
+    }
+    
+    return Json(new { mensaje = "Formulario enviado correctamente." });
+}
+```
+
+<Info>
+  Agent responses are stored in `/evidencias_respuesta_caso/{case_id}/{response_id}/` with separate folders for photos and PDFs.
+</Info>
+
+---
+
+## Technical Stack
+
+<CardGroup cols={2}>
+  <Card title="Backend" icon="server">
+    - ASP.NET Core 8.0 MVC
+    - Entity Framework Core 9.0
+    - SQL Server database
+    - Session-based authentication
+  </Card>
+  <Card title="Frontend" icon="code">
+    - Razor Views (.cshtml)
+    - Bootstrap 5
+    - jQuery 3.x
+    - Leaflet.js for maps
+  </Card>
+</CardGroup>
+
+---
+
+## Database Architecture
+
+The platform uses a relational SQL Server database with key entities:
+
+```csharp clases_catalogo.cs
+public class Problema
+{
+    public int Id_Problema { get; set; }
+    public string Nombre { get; set; }
+    public ICollection<Clase_Problema> Clases_Problema { get; set; }
+}
+
+public class Clase_Problema
+{
+    public int Id_Clase_Problema { get; set; }
+    public string Nombre { get; set; }
+    public int Id_Problema { get; set; }
+    public ICollection<Tipo_Problema> Tipos_Problema { get; set; }
+}
+
+public class CAT001_DEPTOS
+{
+    public short A001ID { get; set; }
+    public string A001CODIGO { get; set; }
+    public string A001DESCRIPCION { get; set; }
+    public ICollection<CAT002_CIUDADES> Ciudades { get; set; }
+}
+```
+
+<Note>
+  The system relies heavily on stored procedures for complex queries like case filtering and grouping.
+</Note>
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quick-start">
+    Get the platform running in minutes
+  </Card>
+  <Card title="User Guide" icon="book" href="/user-guide/citizen-portal">
+    Learn how to use the citizen portal
+  </Card>
+  <Card title="Architecture" icon="diagram-project" href="/architecture/overview">
+    Understand the technical architecture
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/reportes-controller">
+    Explore the API endpoints
+  </Card>
+</CardGroup>
