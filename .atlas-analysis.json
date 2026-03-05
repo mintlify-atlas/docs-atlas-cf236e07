@@ -1,0 +1,115 @@
+{
+  "projectType": "saas",
+  "projectName": "Quejas Ciudadanas",
+  "projectDescription": "A citizen complaint management platform for reporting and tracking infrastructure issues with geolocation, photo evidence, and agent response workflows.",
+  "theme": "mint",
+  "primaryColor": "#2563eb",
+  "lightColor": "#60a5fa",
+  "darkColor": "#1e40af",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": [
+              "introduction",
+              "features",
+              "quick-start"
+            ]
+          },
+          {
+            "group": "Getting Started",
+            "pages": [
+              "installation",
+              "configuration",
+              "database-setup"
+            ]
+          },
+          {
+            "group": "User Guide",
+            "pages": [
+              "user-guide/citizen-portal",
+              "user-guide/creating-reports",
+              "user-guide/viewing-reports",
+              "user-guide/agent-dashboard",
+              "user-guide/responding-to-cases"
+            ]
+          },
+          {
+            "group": "Features",
+            "pages": [
+              "features/authentication",
+              "features/geolocation",
+              "features/report-management",
+              "features/case-grouping",
+              "features/file-uploads"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Technical Reference",
+        "groups": [
+          {
+            "group": "Architecture",
+            "pages": [
+              "architecture/overview",
+              "architecture/mvc-structure",
+              "architecture/database-schema"
+            ]
+          },
+          {
+            "group": "API Reference",
+            "pages": [
+              "api/home-controller",
+              "api/reportes-controller",
+              "api/stored-procedures"
+            ]
+          },
+          {
+            "group": "Data Models",
+            "pages": [
+              "models/user-models",
+              "models/report-models",
+              "models/catalog-models"
+            ]
+          },
+          {
+            "group": "Deployment",
+            "pages": [
+              "deployment/prerequisites",
+              "deployment/iis-deployment",
+              "deployment/configuration"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "User registration and authentication with session management",
+    "Geolocation-based infrastructure problem reporting",
+    "Photo evidence upload (6 images per report)",
+    "Interactive map view with report filtering",
+    "Automatic case grouping by location and problem type",
+    "Agent response system with photo and PDF attachments",
+    "Multi-level problem categorization (Problem, Class, Type)",
+    "Department and city-based filtering",
+    "Case status tracking and management"
+  ],
+  "publicApiSurface": [
+    "HomeController.inicio_secion - User login endpoint",
+    "HomeController.nuevo_usuario - User registration endpoint",
+    "ReportesController.GuardarReporte - Submit new citizen report",
+    "ReportesController.consultar_reportes - Filter and query reports",
+    "ReportesController.consultar_caso_x_report - Get case details with photos",
+    "ReportesController.lista_reportes_similares - Find related reports",
+    "ReportesController.Enviar_Respuest_caso - Agent response submission",
+    "ReportesController.consultar_respuesta_agentes - Get agent responses",
+    "ReportesController.GetClasesProblema - Get problem classes by type",
+    "ReportesController.GetTiposProblema - Get problem types by class",
+    "ReportesController.ObtenerCiudades - Get cities by department"
+  ]
+}
