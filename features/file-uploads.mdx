@@ -143,7 +143,7 @@ public async Task<IActionResult> GuardarReporte([FromForm]Reporte_nuevo model)
 
 Citizen report photos are stored in a hierarchical structure:
 
-```
+```text
 wwwroot/
   evidencias/
     {Id_caso}_{Id_reporte}_{Id_user}_{llave}/
@@ -323,7 +323,7 @@ public async Task<IActionResult> Enviar_Respuest_caso([FromForm] FormularioModel
 
 ### Agent Response File Structure
 
-```
+```text
 wwwroot/
   evidencias_respuesta_caso/
     {id_caso}/
